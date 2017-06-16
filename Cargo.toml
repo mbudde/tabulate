@@ -1,0 +1,7 @@
+[package]
+name = "tabulate"
+version = "0.1.0"
+authors = ["Michael Budde <mbu@jobindex.dk>"]
+
+[dependencies]
+clap = "~2.23.0"
