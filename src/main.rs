@@ -1,13 +1,19 @@
 extern crate clap;
+extern crate combine;
 
 use std::io::{self, Write, BufRead};
 use std::cmp::{min, max};
+use std::str::FromStr;
 
 use clap::{App, Arg};
+use combine::{Parser, many1, token, eof, optional};
+use combine::char::digit;
 
+#[derive(Debug)]
 struct Column {
     samples: Vec<(usize, usize)>,
     size: Option<usize>,
+    excluded: bool,
 }
 
 impl Column {
@@ -15,6 +21,7 @@ impl Column {
         Column {
             samples: vec![(initial, 0)],
             size: None,
+            excluded: false,
         }
     }
 
@@ -81,6 +88,8 @@ fn run() -> io::Result<()> {
         .arg(Arg::from_usage("-t, --truncate 'Truncate data that does not fit in a column'"))
         .arg(Arg::from_usage("-c, --compress-cols=[RATIO] 'Compress columns so more data fits on the screen'"))
         .arg(Arg::from_usage("-n, --estimate-count=[N] 'Estimate column sizes from the first N lines'"))
+        .arg(Arg::from_usage("-i, --include=[COLS] 'Columns to show (starts from 0, defaults to all columns)'"))
+        .arg(Arg::from_usage("-x, --exclude=[COLS] 'Columns to hide (starts from 0; defaults to no columns)'"))
         .get_matches();
 
     let opt_truncate = matches.is_present("truncate");
@@ -90,9 +99,18 @@ fn run() -> io::Result<()> {
         .unwrap_or(Ok((1.0)))
         .unwrap();
 
-    let opt_lines= matches.value_of("estimate-count")
+    let opt_lines = matches.value_of("estimate-count")
         .map(|m| m.parse().map_err(|_| "could not parse value as a number".to_string()))
         .unwrap_or(Ok((1000)))
+        .unwrap();
+
+    let opt_include_cols = matches.value_of("include")
+        .map(|m| m.split(',').map(|s| s.parse().map_err(|_| "could not parse value as a list of ranges".to_string())).collect::<Result<Vec<_>, _>>().map(Some))
+        .unwrap_or(Ok(None))
+        .unwrap();
+    let opt_exclude_cols = matches.value_of("exclude")
+        .map(|m| m.split(',').map(|s| s.parse().map_err(|_| "could not parse value as a list of ranges".to_string())).collect::<Result<Vec<_>, _>>())
+        .unwrap_or(Ok(vec![]))
         .unwrap();
 
     let stdin = std::io::stdin();
@@ -107,7 +125,7 @@ fn run() -> io::Result<()> {
         let line = line.unwrap();
         split_line(&line, &mut row);
         if measuring {
-            update_columns(&mut columns, &row[..]);
+            update_columns(&mut columns, &row[..], opt_include_cols.as_ref(), &opt_exclude_cols[..]);
             backlog.push(row.clone());
             if backlog.len() >= opt_lines {
                 measuring = false;
@@ -198,14 +216,25 @@ fn split_line(input: &str, row: &mut Vec<String>) {
             i += 1;
         }
     }
+    if let Some(s) = start {
+        // println!("output = {:?}", &input[s..i]);
+        row.push(input[s..i].to_owned());
+    }
 }
 
-fn update_columns(columns: &mut Vec<Column>, row: &[String]) {
+fn update_columns(columns: &mut Vec<Column>, row: &[String], include_cols: Option<&Vec<Range>>, excluded_cols: &[Range]) {
     for i in 0..min(columns.len(), row.len()) {
         columns[i].update(row[i].len());
     }
     for i in columns.len()..row.len() {
-        columns.push(Column::new(row[i].len()));
+        let mut col = Column::new(row[i].len());
+        if include_cols.map(|v| !v.iter().any(|r| r.contains(i as u32))).unwrap_or(false) {
+            col.excluded = true;
+        }
+        if excluded_cols.iter().any(|r| r.contains(i as u32)) {
+            col.excluded = true;
+        }
+        columns.push(col);
     }
 }
 
@@ -213,7 +242,7 @@ fn print_row<W: Write>(out: &mut W, columns: &[Column], row: &[String], truncate
     let mut first = true;
     let mut goal: usize = 0;
     let mut used: usize = 0;
-    for (cell, col) in row.iter().zip(columns.iter()) {
+    for (cell, col) in row.iter().zip(columns.iter()).filter(|&(_, col)| !col.excluded) {
         if !first {
             write!(out, "  ")?;
         }
@@ -231,4 +260,42 @@ fn print_row<W: Write>(out: &mut W, columns: &[Column], row: &[String], truncate
     }
     write!(out, "\n")?;
     Ok(())
+}
+
+#[derive(Debug)]
+enum Range {
+    From(u32),
+    To(u32),
+    Between(u32, u32),
+}
+
+impl Range {
+    fn contains(&self, n: u32) -> bool {
+        use Range::*;
+        match *self {
+            From(a)       => a <= n,
+            To(b)         =>           n <= b,
+            Between(a, b) => a <= n && n <= b,
+        }
+    }
+}
+
+impl FromStr for Range {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Range, String> {
+        use Range::*;
+        let num = || many1(digit())
+            .map(|string: String| string.parse::<u32>().unwrap());
+
+        let mut range = num().and(optional(token('-').with(optional(num()))))
+            .map(|(a, b)| match b {
+                Some(Some(b)) => Between(a, b),
+                Some(None) => From(a),
+                None    => Between(a, a),
+            })
+            .or(token('-').with(num()).map(|b| To(b)))
+            .skip(eof());
+
+        range.parse(s).map_err(|_| "could not parse range".to_string()).map(|o| o.0)
+    }
 }
