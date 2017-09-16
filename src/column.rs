@@ -9,7 +9,7 @@ pub struct Column {
 impl Column {
     pub fn new(initial: usize) -> Column {
         Column {
-            samples: vec![(initial, 0)],
+            samples: vec![(initial, 1)],
             size: None,
             excluded: false,
         }
