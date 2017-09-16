@@ -35,10 +35,10 @@ fn run() -> io::Result<()> {
             "-n, --estimate-count=[N] 'Estimate column sizes from the first N lines'",
         ))
         .arg(Arg::from_usage(
-            "-i, --include=[COLS] 'Columns to show (starts from 0, defaults to all columns)'",
+            "-i, --include=[COLS] 'Columns to show (starts from 1, defaults to all columns)'",
         ))
         .arg(Arg::from_usage(
-            "-x, --exclude=[COLS] 'Columns to hide (starts from 0; defaults to no columns)'",
+            "-x, --exclude=[COLS] 'Columns to hide (starts from 1; defaults to no columns)'",
         ))
         .get_matches();
 
@@ -218,12 +218,12 @@ fn update_columns(
     for i in columns.len()..row.len() {
         let mut col = Column::new(row[i].len());
         if include_cols
-            .map(|v| !v.iter().any(|r| r.contains(i as u32)))
+            .map(|v| !v.iter().any(|r| r.contains((i + 1) as u32)))
             .unwrap_or(false)
         {
             col.set_excluded(true);
         }
-        if excluded_cols.iter().any(|r| r.contains(i as u32)) {
+        if excluded_cols.iter().any(|r| r.contains((i + 1) as u32)) {
             col.set_excluded(true);
         }
         columns.push(col);
