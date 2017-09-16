@@ -3,87 +3,21 @@ extern crate combine;
 
 use std::io::{self, Write, BufRead};
 use std::cmp::{min, max};
-use std::str::FromStr;
 
 use clap::{App, Arg};
-use combine::{Parser, many1, token, eof, optional};
-use combine::char::digit;
 
-#[derive(Debug)]
-struct Column {
-    samples: Vec<(usize, usize)>,
-    size: Option<usize>,
-    excluded: bool,
-}
+use column::Column;
+use range::Range;
 
-impl Column {
-    fn new(initial: usize) -> Column {
-        Column {
-            samples: vec![(initial, 0)],
-            size: None,
-            excluded: false,
-        }
-    }
-
-    fn size(&self) -> usize {
-        self.size.expect("column size has not been calculated")
-    }
-
-    fn calculate_size(&mut self, ratio: f64) {
-        assert!(self.samples.len() > 0);
-
-        if ratio == 0. {
-            // Optimization
-            self.size = Some(self.samples.iter().map(|p| p.0).max().unwrap_or(0));
-        }
-
-        let n: usize = self.samples.iter().map(|p| p.1).sum();
-        let min = self.samples.iter().map(|p| p.0).min().unwrap();
-        let max = self.samples.iter().map(|p| p.0).max().unwrap();
-        let spread = (0.7 + 20.0 / (1 + max - min) as f64).powi(2);
-        let prob = self.samples
-            .iter()
-            .map(|&(s, x)| (s, x as f64 / n as f64))
-            .collect::<Vec<_>>();
-
-        let mut best_score = std::f64::MAX;
-        let mut best_size = max;
-        for l in min..max + 1 {
-            let waste: f64 = prob.iter()
-                .take_while(|&&(s, _)| s < l)
-                .map(|&(s, p)| p * l.saturating_sub(s) as f64)
-                .sum();
-            let overflow: f64 = prob.iter()
-                .skip_while(|&&(s, _)| s <= l)
-                .map(|&(s, p)| p * s.saturating_sub(l) as f64)
-                .sum();
-
-            let score = ratio * (1.0 + waste) + (1.0 + overflow).powi(2) * spread;
-
-            if score < best_score {
-                best_score = score;
-                best_size = l;
-            } else {
-                break;
-            }
-        }
-        self.size = Some(best_size);
-    }
-
-    fn update(&mut self, val: usize) {
-        match self.samples.binary_search_by_key(&val, |t| t.0) {
-            Ok(i) => self.samples[i].1 += 1,
-            Err(i) => self.samples.insert(i, (val, 1)),
-        }
-    }
-}
+mod column;
+mod range;
 
 fn main() {
     match run() {
         Ok(..) => {}
         Err(ref e) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
         Err(ref e) => {
-            writeln!(std::io::stderr(), "Error: {}", e).unwrap();
+            eprintln!("Error: {}", e);
             std::process::exit(1);
         }
     }
@@ -287,10 +221,10 @@ fn update_columns(
             .map(|v| !v.iter().any(|r| r.contains(i as u32)))
             .unwrap_or(false)
         {
-            col.excluded = true;
+            col.set_excluded(true);
         }
         if excluded_cols.iter().any(|r| r.contains(i as u32)) {
-            col.excluded = true;
+            col.set_excluded(true);
         }
         columns.push(col);
     }
@@ -306,7 +240,7 @@ fn print_row<W: Write>(
     let mut goal: usize = 0;
     let mut used: usize = 0;
     for (cell, col) in row.iter().zip(columns.iter()).filter(
-        |&(_, col)| !col.excluded,
+        |&(_, col)| !col.is_excluded(),
     )
     {
         if !first {
@@ -328,43 +262,3 @@ fn print_row<W: Write>(
     Ok(())
 }
 
-#[derive(Debug)]
-enum Range {
-    From(u32),
-    To(u32),
-    Between(u32, u32),
-}
-
-impl Range {
-    fn contains(&self, n: u32) -> bool {
-        use Range::*;
-        match *self {
-            From(a) => a <= n,
-            To(b) => n <= b,
-            Between(a, b) => a <= n && n <= b,
-        }
-    }
-}
-
-impl FromStr for Range {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Range, String> {
-        use Range::*;
-        let num = || many1(digit()).map(|string: String| string.parse::<u32>().unwrap());
-
-        let mut range = num()
-            .and(optional(token('-').with(optional(num()))))
-            .map(|(a, b)| match b {
-                Some(Some(b)) => Between(a, b),
-                Some(None) => From(a),
-                None => Between(a, a),
-            })
-            .or(token('-').with(num()).map(|b| To(b)))
-            .skip(eof());
-
-        range
-            .parse(s)
-            .map_err(|_| "could not parse range".to_string())
-            .map(|o| o.0)
-    }
-}

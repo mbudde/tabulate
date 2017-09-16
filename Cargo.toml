@@ -5,4 +5,4 @@ authors = ["Michael Budde <mbu@jobindex.dk>"]
 
 [dependencies]
 clap = "~2.23.0"
-combine = "*"
+combine = "2.5.1"
