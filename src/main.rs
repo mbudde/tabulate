@@ -50,20 +50,33 @@ fn main() {
 fn run() -> Result<()> {
     let matches = App::new("tabulate")
         .arg(Arg::from_usage(
-            "-t, --truncate 'Truncate data that does not fit in a column'",
+            "-t, --truncate \
+            'Truncate data that does not fit in a column'",
         ))
         .arg(Arg::from_usage(
-            "-c, --compress-cols=[RATIO] 'Compress columns so more data fits on the screen'",
+            "-c, --compress-cols=[RATIO] \
+            'Control how much columns are compressed (0 disabled column compression, default: 1.0)'",
         ))
         .arg(Arg::from_usage(
-            "-n, --estimate-count=[N] 'Estimate column sizes from the first N lines'",
+            "-n, --estimate-count=[N] \
+            'Estimate column sizes from the first N lines'",
         ))
         .arg(Arg::from_usage(
-            "-i, --include=[COLS] 'Columns to show (starts from 1, defaults to all columns)'",
+            "-i, --include=[LIST] \
+            'Columns to show (starts from 1, defaults to all columns)'",
         ))
         .arg(Arg::from_usage(
-            "-x, --exclude=[COLS] 'Columns to hide (starts from 1; defaults to no columns)'",
+            "-x, --exclude=[LIST] \
+            'Columns to hide (starts from 1; defaults to no columns)'",
         ))
+        .after_help(
+r#"LIST should be a comma-separated list of ranges. Each range should be of one of the following
+forms:
+
+  N       N'th column, starting at 1
+  N-      from N'th column to end of line
+  N-M     from N'th to M'th column
+  -M      from first to M'th column"#)
         .get_matches();
 
     let opt_truncate = matches.is_present("truncate");
