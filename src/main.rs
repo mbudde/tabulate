@@ -213,7 +213,7 @@ fn update_columns(
     excluded_cols: &[Range],
 ) {
     for i in 0..min(columns.len(), row.len()) {
-        columns[i].update(row[i].len());
+        columns[i].add_sample(row[i].len());
     }
     for i in columns.len()..row.len() {
         let mut col = Column::new(row[i].len());
@@ -261,4 +261,3 @@ fn print_row<W: Write>(
     write!(out, "\n")?;
     Ok(())
 }
-

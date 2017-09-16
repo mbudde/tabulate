@@ -68,11 +68,10 @@ impl Column {
         self.size = Some(best_size);
     }
 
-    pub fn update(&mut self, val: usize) {
-        match self.samples.binary_search_by_key(&val, |t| t.0) {
+    pub fn add_sample(&mut self, size_sample: usize) {
+        match self.samples.binary_search_by_key(&size_sample, |t| t.0) {
             Ok(i) => self.samples[i].1 += 1,
-            Err(i) => self.samples.insert(i, (val, 1)),
+            Err(i) => self.samples.insert(i, (size_sample, 1)),
         }
     }
 }
-
