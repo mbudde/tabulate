@@ -3,6 +3,8 @@ use std::str::FromStr;
 use combine::{Parser, many1, token, eof, optional};
 use combine::char::digit;
 
+use errors::*;
+
 #[derive(Debug)]
 pub enum Range {
     From(u32),
@@ -22,8 +24,8 @@ impl Range {
 }
 
 impl FromStr for Range {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Range, String> {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Range> {
         use Range::*;
         let num = || many1(digit()).map(|string: String| string.parse::<u32>().unwrap());
 
@@ -39,7 +41,14 @@ impl FromStr for Range {
 
         range
             .parse(s)
-            .map_err(|_| "could not parse range".to_string())
+            .map_err(|_| ErrorKind::RangeParseError(s.to_string()).into())
             .map(|o| o.0)
+            .and_then(|r| match r {
+                From(0) | To(0) | Between(0, _) => Err(ErrorKind::ColumnsStartAtOne.into()),
+                Between(a, b) if b < a => Err(
+                    ErrorKind::InvalidDecreasingRange(s.to_string()).into(),
+                ),
+                _ => Ok(r),
+            })
     }
 }

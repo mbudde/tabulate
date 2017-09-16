@@ -1,29 +1,53 @@
 extern crate clap;
 extern crate combine;
+#[macro_use]
+extern crate error_chain;
 
 use std::io::{self, Write, BufRead};
 use std::cmp::{min, max};
 
 use clap::{App, Arg};
 
-use column::Column;
-use range::Range;
-
 mod column;
 mod range;
 
-fn main() {
-    match run() {
-        Ok(..) => {}
-        Err(ref e) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
-        Err(ref e) => {
-            eprintln!("Error: {}", e);
-            std::process::exit(1);
+mod errors {
+    error_chain!{
+        foreign_links {
+            Io(::std::io::Error);
+        }
+
+        errors {
+            RangeParseError(s: String) {
+                display("could not parse '{}' as a range", s)
+            }
+            InvalidDecreasingRange(s: String) {
+                display("invalid decreasing range: {}", s)
+            }
+            ColumnsStartAtOne {
+                display("columns are numbered starting from 1")
+            }
         }
     }
 }
 
-fn run() -> io::Result<()> {
+use column::Column;
+use errors::*;
+use range::Range;
+
+fn main() {
+    match run() {
+        Ok(..) => {}
+        Err(Error(ErrorKind::Io(ref e), _)) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
+        Err(ref e) => {
+            use error_chain::ChainedError;
+            eprintln!("{}", e.display_chain());
+            ::std::process::exit(1);
+        }
+    }
+}
+
+fn run() -> Result<()> {
     let matches = App::new("tabulate")
         .arg(Arg::from_usage(
             "-t, --truncate 'Truncate data that does not fit in a column'",
@@ -47,50 +71,41 @@ fn run() -> io::Result<()> {
     let opt_ratio = matches
         .value_of("compress-cols")
         .map(|m| {
-            m.parse().map_err(|_| {
-                "could not parse value as a floating number".to_string()
-            })
+            m.parse().chain_err(
+                || "could not parse argument to -c/--compress-cols as a floating number",
+            )
         })
-        .unwrap_or(Ok((1.0)))
-        .unwrap();
+        .unwrap_or(Ok((1.0)))?;
 
     let opt_lines = matches
         .value_of("estimate-count")
         .map(|m| {
-            m.parse().map_err(
-                |_| "could not parse value as a number".to_string(),
+            m.parse().chain_err(
+                || "could not parse argument to -n/--estimate-count as a number",
             )
         })
-        .unwrap_or(Ok((1000)))
-        .unwrap();
+        .unwrap_or(Ok((1000)))?;
 
     let opt_include_cols = matches
         .value_of("include")
         .map(|m| {
             m.split(',')
-                .map(|s| {
-                    s.parse().map_err(|_| {
-                        "could not parse value as a list of ranges".to_string()
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()
+                .map(|s| s.parse())
+                .collect::<Result<Vec<_>>>()
+                .chain_err(|| "invalid argument to -i/--include")
                 .map(Some)
         })
-        .unwrap_or(Ok(None))
-        .unwrap();
+        .unwrap_or(Ok(None))?;
+
     let opt_exclude_cols = matches
         .value_of("exclude")
         .map(|m| {
             m.split(',')
-                .map(|s| {
-                    s.parse().map_err(|_| {
-                        "could not parse value as a list of ranges".to_string()
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()
+                .map(|s| s.parse())
+                .collect::<Result<Vec<_>>>()
+                .chain_err(|| "invalid argument to -x/--exclude")
         })
-        .unwrap_or(Ok(vec![]))
-        .unwrap();
+        .unwrap_or(Ok(vec![]))?;
 
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
@@ -101,7 +116,7 @@ fn run() -> io::Result<()> {
     let mut row = Vec::new();
     let mut measuring = true;
     for line in stdin.lock().lines() {
-        let line = line.unwrap();
+        let line = line?;
         split_line(&line, &mut row);
         if measuring {
             update_columns(
