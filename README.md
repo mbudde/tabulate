@@ -1,32 +1,49 @@
 # tabulate
 
-Align data in columns using heuristics to find suitable column size that does
-not waste too much empty space. Useful for files like access logs where some
-lines have columns that are much larger than than the rest of the lines.
+Align data in columns using heuristics to find suitable column sizes that
+minimize the amount of wasted space. Useful for files like access logs where
+some lines have columns that are much larger than than the rest of the lines.
 
 ```
-$ cat <<EOF | tabulate
+$ cat input.txt
 aaa bbb ccc
 a   b   c
 aaaaaaaaaaaaaaaaaaaaaaa bb cc
 aaaaa b ccccc
 aaa bb ccc
 aaaa bb cccc
-EOF
-aaa    bbb  ccc
-a      b    c
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  bb  cc
-aaaaa  b    ccccc
-aaa    bb   ccc
-aaaaa  b    ccccc
-aaa    bb   ccc
-aaa    bb   ccc
-aaaaa  b    ccccc
-aaa    bb   ccc
-aaa    bbb  cccc
-aaaa   bb   cccc
-aaa    bb   ccc
-aaaa   bb   cccc
+aaa bb ccc
+aaa bb ccc
+aaaaa b ccccc
+aaa bb ccc
+aaa bb ccc
+aaaaa b ccccc
+$ tabulate <input.txt
+aaa       bbb  ccc
+a         b    c
+aaaaaaaaaaaaaaaaaaaaaaa  bb  cc
+aaaaa     b    ccccc
+aaa       bb   ccc
+aaaa      bb   cccc
+aaa       bb   ccc
+aaa       bb   ccc
+aaaaa     b    ccccc
+aaa       bb   ccc
+aaa       bb   ccc
+aaaaa     b    ccccc
+$ tabulate -t <input.txt
+aaa       bbb  ccc
+a         b    c
+aaaaaaa…  bb   cc
+aaaaa     b    ccccc
+aaa       bb   ccc
+aaaa      bb   cccc
+aaa       bb   ccc
+aaa       bb   ccc
+aaaaa     b    ccccc
+aaa       bb   ccc
+aaa       bb   ccc
+aaaaa     b    ccccc
 ```
 
 ```

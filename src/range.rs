@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::iter::FromIterator;
 
 use combine::{Parser, many1, token, eof, optional};
 use combine::char::digit;
@@ -50,5 +51,23 @@ impl FromStr for Range {
                 ),
                 _ => Ok(r),
             })
+    }
+}
+
+pub struct Ranges(pub Vec<Range>);
+
+impl Ranges {
+    pub fn new() -> Ranges {
+        Ranges(Vec::new())
+    }
+
+    pub fn any_contains(&self, n: u32) -> bool {
+        self.0.iter().any(|r| r.contains(n))
+    }
+}
+
+impl FromIterator<Range> for Ranges {
+    fn from_iter<I: IntoIterator<Item=Range>>(iter: I) -> Self {
+        Ranges(Vec::from_iter(iter))
     }
 }

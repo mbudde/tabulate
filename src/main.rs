@@ -33,7 +33,7 @@ mod errors {
 
 use column::Column;
 use errors::*;
-use range::Range;
+use range::{Range, Ranges};
 
 fn main() {
     match run() {
@@ -49,26 +49,46 @@ fn main() {
 
 fn run() -> Result<()> {
     let matches = App::new("tabulate")
-        .arg(Arg::from_usage(
-            "-t, --truncate \
-            'Truncate data that does not fit in a column'",
-        ))
-        .arg(Arg::from_usage(
-            "-c, --compress-cols=[RATIO] \
-            'Control how much columns are compressed (0 disabled column compression, default: 1.0)'",
-        ))
-        .arg(Arg::from_usage(
-            "-n, --estimate-count=[N] \
-            'Estimate column sizes from the first N lines'",
-        ))
-        .arg(Arg::from_usage(
-            "-i, --include=[LIST] \
-            'Columns to show (starts from 1, defaults to all columns)'",
-        ))
-        .arg(Arg::from_usage(
-            "-x, --exclude=[LIST] \
-            'Columns to hide (starts from 1; defaults to no columns)'",
-        ))
+        .arg(Arg::with_name("truncate")
+             .short("t").long("truncate")
+             .value_name("LIST")
+             .require_delimiter(true)
+             .min_values(0)
+             .help("Truncate data that does not fit in a column. \
+                   Takes an optional list of columns that should be truncated. \
+                   If no LIST is given all columns are truncated"))
+        .arg(Arg::with_name("compress-cols")
+             .short("c").long("compress-cols")
+             .value_name("RATIO")
+             .number_of_values(1)
+             .default_value("1.0")
+             .help("Control how much columns are compressed. \
+                   Set to 0 to disable column compression, i.e. columns are sized to fit \
+                   the largest value"))
+        .arg(Arg::with_name("estimate-count")
+             .short("n").long("estimate-count")
+             .value_name("N")
+             .number_of_values(1)
+             .default_value("1000")
+             .help("Estimate column sizes from the first N lines"))
+        .arg(Arg::with_name("include")
+             .short("i").long("include")
+             .value_name("LIST")
+             .use_delimiter(true)
+             .min_values(1)
+             .help("Select which columns to include in the output"))
+        .arg(Arg::with_name("exclude")
+             .short("x").long("exclude")
+             .value_name("LIST")
+             .require_delimiter(true)
+             .min_values(1)
+             .help("Select which columns should be excluded from the output. \
+                   This option takes precedence over --include"))
+        .arg(Arg::with_name("delimiter")
+             .short("d").long("delimiter")
+             .value_name("DELIM")
+             .number_of_values(1)
+             .help("Use characters of DELIM as column delimiters [default: \" \\t\"]"))
         .after_help(
 r#"LIST should be a comma-separated list of ranges. Each range should be of one of the following
 forms:
@@ -79,32 +99,38 @@ forms:
   -M      from first to M'th column"#)
         .get_matches();
 
-    let opt_truncate = matches.is_present("truncate");
+    let opt_truncate = matches
+        .values_of("truncate")
+        .map(|m| {
+            m.map(|s| s.parse())
+                .collect::<Result<Ranges>>()
+                .chain_err(|| "invalid argument to -t/--truncate")
+                .map(|mut v| {
+                    if v.0.is_empty() {
+                        v.0.push(Range::From(1));
+                    }
+                    Some(v)
+                })
+        })
+        .unwrap_or(Ok(None))?;
 
     let opt_ratio = matches
-        .value_of("compress-cols")
-        .map(|m| {
-            m.parse().chain_err(
-                || "could not parse argument to -c/--compress-cols as a floating number",
-            )
-        })
-        .unwrap_or(Ok((1.0)))?;
+        .value_of("compress-cols").unwrap()
+        .parse().chain_err(
+            || "could not parse argument to -c/--compress-cols as a floating number",
+        )?;
 
     let opt_lines = matches
-        .value_of("estimate-count")
-        .map(|m| {
-            m.parse().chain_err(
-                || "could not parse argument to -n/--estimate-count as a number",
-            )
-        })
-        .unwrap_or(Ok((1000)))?;
+        .value_of("estimate-count").unwrap()
+        .parse().chain_err(
+            || "could not parse argument to -n/--estimate-count as a number",
+        )?;
 
     let opt_include_cols = matches
-        .value_of("include")
+        .values_of("include")
         .map(|m| {
-            m.split(',')
-                .map(|s| s.parse())
-                .collect::<Result<Vec<_>>>()
+            m.map(|s| s.parse())
+                .collect::<Result<Ranges>>()
                 .chain_err(|| "invalid argument to -i/--include")
                 .map(Some)
         })
@@ -115,10 +141,14 @@ forms:
         .map(|m| {
             m.split(',')
                 .map(|s| s.parse())
-                .collect::<Result<Vec<_>>>()
+                .collect::<Result<Ranges>>()
                 .chain_err(|| "invalid argument to -x/--exclude")
         })
-        .unwrap_or(Ok(vec![]))?;
+        .unwrap_or(Ok(Ranges::new()))?;
+
+    let opt_delim = matches
+        .value_of("delimiter")
+        .unwrap_or(" \t");
 
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
@@ -130,13 +160,14 @@ forms:
     let mut measuring = true;
     for line in stdin.lock().lines() {
         let line = line?;
-        split_line(&line, &mut row);
+        split_line(&line, &mut row, opt_delim);
         if measuring {
             update_columns(
                 &mut columns,
                 &row[..],
                 opt_include_cols.as_ref(),
-                &opt_exclude_cols[..],
+                &opt_exclude_cols,
+                opt_truncate.as_ref(),
             );
             backlog.push(row.clone());
             if backlog.len() >= opt_lines {
@@ -145,12 +176,12 @@ forms:
                     col.calculate_size(opt_ratio);
                 }
                 for row in &backlog {
-                    print_row(&mut stdout, &columns[..], row, opt_truncate)?;
+                    print_row(&mut stdout, &columns[..], row)?;
                 }
                 backlog.clear();
             }
         } else {
-            print_row(&mut stdout, &columns[..], &row[..], opt_truncate)?;
+            print_row(&mut stdout, &columns[..], &row[..])?;
         }
         row.clear();
     }
@@ -161,7 +192,7 @@ forms:
         }
     }
     for row in &backlog {
-        print_row(&mut stdout, &columns[..], row, opt_truncate)?;
+        print_row(&mut stdout, &columns[..], row)?;
     }
     Ok(())
 }
@@ -172,7 +203,7 @@ enum State {
     EndDelim(char),
 }
 
-fn split_line(input: &str, row: &mut Vec<String>) {
+fn split_line(input: &str, row: &mut Vec<String>, delim: &str) {
     use State::*;
 
     let mut state = Whitespace;
@@ -195,14 +226,14 @@ fn split_line(input: &str, row: &mut Vec<String>) {
                     };
                     start = Some(i);
                     state = EndDelim(end_delim);
-                } else if ch != ' ' && ch != '\t' {
+                } else if !delim.contains(ch) {
                     start = Some(i);
                     state = NonWhitespace;
                 }
             }
             NonWhitespace => {
                 // println!("non-whitespace");
-                if ch == ' ' || ch == '\t' {
+                if delim.contains(ch) {
                     if let Some(s) = start {
                         // println!("output = {:?}", &input[s..i]);
                         row.push(input[s..i].to_owned());
@@ -237,23 +268,30 @@ fn split_line(input: &str, row: &mut Vec<String>) {
 fn update_columns(
     columns: &mut Vec<Column>,
     row: &[String],
-    include_cols: Option<&Vec<Range>>,
-    excluded_cols: &[Range],
+    include_cols: Option<&Ranges>,
+    excluded_cols: &Ranges,
+    truncate_cols: Option<&Ranges>,
 ) {
     for i in 0..min(columns.len(), row.len()) {
         columns[i].add_sample(row[i].len());
     }
     for i in columns.len()..row.len() {
         let mut col = Column::new(row[i].len());
-        if include_cols
-            .map(|v| !v.iter().any(|r| r.contains((i + 1) as u32)))
-            .unwrap_or(false)
-        {
-            col.set_excluded(true);
-        }
-        if excluded_cols.iter().any(|r| r.contains((i + 1) as u32)) {
-            col.set_excluded(true);
-        }
+        let col_num = (i + 1) as u32;
+
+        let included = include_cols
+            .map(|rs| rs.any_contains(col_num))
+            .unwrap_or(true);
+
+        let excluded = excluded_cols.any_contains(col_num);
+
+        let truncated = truncate_cols
+            .map(|rs| rs.any_contains(col_num))
+            .unwrap_or(false);
+
+        col.set_excluded(!included || excluded);
+        col.set_truncated(truncated);
+
         columns.push(col);
     }
 }
@@ -262,7 +300,6 @@ fn print_row<W: Write>(
     out: &mut W,
     columns: &[Column],
     row: &[String],
-    truncate: bool,
 ) -> io::Result<()> {
     let mut first = true;
     let mut goal: usize = 0;
@@ -277,7 +314,7 @@ fn print_row<W: Write>(
         first = false;
         let width = col.size();
         let out_width = width.saturating_sub(used.saturating_sub(goal));
-        if truncate && cell.len() > out_width {
+        if col.is_truncated() && cell.len() > out_width {
             write!(out, "{}…", &cell[0..out_width - 1])?;
             used += out_width;
         } else {

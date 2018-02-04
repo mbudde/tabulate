@@ -4,6 +4,7 @@ pub struct Column {
     samples: Vec<(usize, usize)>,
     size: Option<usize>,
     excluded: bool,
+    truncated: bool,
 }
 
 impl Column {
@@ -12,6 +13,7 @@ impl Column {
             samples: vec![(initial, 1)],
             size: None,
             excluded: false,
+            truncated: false,
         }
     }
 
@@ -21,6 +23,14 @@ impl Column {
 
     pub fn set_excluded(&mut self, is_excluded: bool) {
         self.excluded = is_excluded;
+    }
+
+    pub fn is_truncated(&self) -> bool {
+        self.truncated
+    }
+
+    pub fn set_truncated(&mut self, is_truncated: bool) {
+        self.truncated = is_truncated;
     }
 
     pub fn size(&self) -> usize {
