@@ -1,3 +1,10 @@
+use std::io::{self, Write};
+
+#[derive(Debug)]
+struct ExtraInfo {
+    min_value: Option<String>,
+    max_value: Option<String>,
+}
 
 #[derive(Debug)]
 pub struct Column {
@@ -5,15 +12,26 @@ pub struct Column {
     size: Option<usize>,
     excluded: bool,
     truncated: bool,
+    extra_info: Option<ExtraInfo>,
 }
 
 impl Column {
-    pub fn new(initial: usize) -> Column {
+    pub fn new(initial: usize, collect_info: bool) -> Column {
+        let extra = if collect_info {
+            Some(ExtraInfo {
+                min_value: None,
+                max_value: None,
+            })
+        } else {
+            None
+        };
+
         Column {
             samples: vec![(initial, 1)],
             size: None,
             excluded: false,
             truncated: false,
+            extra_info: extra,
         }
     }
 
@@ -78,10 +96,33 @@ impl Column {
         self.size = Some(best_size);
     }
 
-    pub fn add_sample(&mut self, size_sample: usize) {
-        match self.samples.binary_search_by_key(&size_sample, |t| t.0) {
+    pub fn add_sample(&mut self, sample: &str) {
+        let size = sample.len();
+        match self.samples.binary_search_by_key(&size, |t| t.0) {
             Ok(i) => self.samples[i].1 += 1,
-            Err(i) => self.samples.insert(i, (size_sample, 1)),
+            Err(i) => self.samples.insert(i, (size, 1)),
         }
+        if let Some(ref mut extra) = self.extra_info {
+            if extra.min_value.as_ref().map(|s| size < s.len()).unwrap_or(true) {
+                extra.min_value = Some(sample.to_string());
+            }
+            if extra.max_value.as_ref().map(|s| size > s.len()).unwrap_or(true) {
+                extra.max_value = Some(sample.to_string());
+            }
+        }
+    }
+
+    pub fn print_info<W: Write>(&mut self, out: &mut W) -> io::Result<()> {
+        let extra = self.extra_info.take().unwrap();
+        write!(out, "  Computed column size:  {}\n", self.size.unwrap())?;
+        write!(out, "  Excluded:              {}\n", self.excluded)?;
+        write!(out, "  Truncated:             {}\n", self.truncated)?;
+        if let Some(ref min) = extra.min_value {
+            write!(out, "  Min-length value:      [length {}] {:?}\n", min.len(), min)?;
+        }
+        if let Some(ref max) = extra.max_value {
+            write!(out, "  Max-length value:      [length {}] {:?}\n", max.len(), max)?;
+        }
+        Ok(())
     }
 }

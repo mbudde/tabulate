@@ -50,24 +50,31 @@ aaaaa     b    ccccc
 tabulate
 
 USAGE:
-    tabulate [FLAGS] [OPTIONS]
+    tabulate [OPTIONS]
 
 FLAGS:
-    -h, --help        Prints help information
-    -t, --truncate    Truncate data that does not fit in a column
-    -V, --version     Prints version information
+        --column-info    Print information about the columns
+    -h, --help           Prints help information
+    -V, --version        Prints version information
 
 OPTIONS:
     -c, --compress-cols <RATIO>
-            Control how much columns are compressed (0 disabled column compression,
-            default: 1.0)
-    -n, --estimate-count <N>       Estimate column sizes from the first N lines
+            Control how much columns are compressed. Set to 0 to disable column
+            compression [default: 1.0]
+    -d, --delimiter <DELIM>
+            Use characters of DELIM as column delimiters [default: " \t"]
+
+    -n, --estimate-count <N>
+            Estimate column sizes from the first N lines [default: 1000]
+
     -x, --exclude <LIST>
-            Columns to hide (starts from 1; defaults to no columns)
-
-    -i, --include <LIST>
-            Columns to show (starts from 1, defaults to all columns)
-
+            Select which columns should be excluded from the output. This option
+            takes precedence over --include
+    -i, --include <LIST>           Select which columns to include in the output
+    -t, --truncate <LIST>
+            Truncate data that does not fit in a column. Takes an optional list of
+            columns that should be truncated. If no LIST is given all columns are
+            truncated
 
 LIST should be a comma-separated list of ranges. Each range should be of one of the
 following forms:

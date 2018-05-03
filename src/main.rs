@@ -89,6 +89,9 @@ fn run() -> Result<()> {
              .value_name("DELIM")
              .number_of_values(1)
              .help("Use characters of DELIM as column delimiters [default: \" \\t\"]"))
+        .arg(Arg::with_name("column-info")
+             .long("column-info")
+             .help("Print information about the columns"))
         .after_help(
 r#"LIST should be a comma-separated list of ranges. Each range should be of one of the following
 forms:
@@ -150,50 +153,84 @@ forms:
         .value_of("delimiter")
         .unwrap_or(" \t");
 
+    let opt_print_info = matches.is_present("column-info");
+
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
 
+    #[derive(Debug)]
+    enum ProcessingState {
+        Measuring { backlog: Vec<Vec<String>> },
+        PrintBacklog { backlog: Vec<Vec<String>> },
+        ProcessInput,
+    }
+
+    let mut state = ProcessingState::Measuring { backlog: Vec::new() };
     let mut columns = Vec::new();
-    let mut backlog = Vec::new();
     let mut row = Vec::new();
-    let mut measuring = true;
-    for line in stdin.lock().lines() {
-        let line = line?;
-        split_line(&line, &mut row, opt_delim);
-        if measuring {
-            update_columns(
-                &mut columns,
-                &row[..],
-                opt_include_cols.as_ref(),
-                &opt_exclude_cols,
-                opt_truncate.as_ref(),
-            );
-            backlog.push(row.clone());
-            if backlog.len() >= opt_lines {
-                measuring = false;
+    let mut lines = stdin.lock().lines();
+
+    loop {
+        state = match state {
+            ProcessingState::Measuring { mut backlog } => {
+                if let Some(line) = lines.next() {
+                    let line = line?;
+                    split_line(&line, &mut row, opt_delim);
+                    update_columns(
+                        &mut columns,
+                        &row[..],
+                        opt_include_cols.as_ref(),
+                        &opt_exclude_cols,
+                        opt_truncate.as_ref(),
+                        opt_print_info,
+                    );
+                    backlog.push(row.clone());
+                    row.clear();
+                    if backlog.len() >= opt_lines {
+                        ProcessingState::PrintBacklog { backlog }
+                    } else {
+                        ProcessingState::Measuring { backlog }
+                    }
+                } else {
+                    ProcessingState::PrintBacklog { backlog }
+                }
+            }
+            ProcessingState::PrintBacklog { backlog } => {
                 for col in &mut columns {
                     col.calculate_size(opt_ratio);
                 }
+                if opt_print_info {
+                    for (i, col) in columns.iter_mut().enumerate() {
+                        col.calculate_size(opt_ratio);
+                        write!(stdout, "Column {}\n", i + 1)?;
+                        col.print_info(&mut stdout)?;
+                        write!(stdout, "\n")?;
+                    }
+                    return Ok(());
+                }
+
                 for row in &backlog {
                     print_row(&mut stdout, &columns[..], row)?;
                 }
-                backlog.clear();
+
+                ProcessingState::ProcessInput
             }
-        } else {
-            print_row(&mut stdout, &columns[..], &row[..])?;
+            ProcessingState::ProcessInput => {
+                if let Some(line) = lines.next() {
+                    let line = line?;
+                    split_line(&line, &mut row, opt_delim);
+                    print_row(&mut stdout, &columns[..], &row[..])?;
+                    row.clear();
+
+                    ProcessingState::ProcessInput
+                } else {
+                    break;
+                }
+            }
         }
-        row.clear();
     }
 
-    if measuring {
-        for col in &mut columns {
-            col.calculate_size(opt_ratio);
-        }
-    }
-    for row in &backlog {
-        print_row(&mut stdout, &columns[..], row)?;
-    }
     Ok(())
 }
 
@@ -271,12 +308,13 @@ fn update_columns(
     include_cols: Option<&Ranges>,
     excluded_cols: &Ranges,
     truncate_cols: Option<&Ranges>,
+    collect_info: bool,
 ) {
     for i in 0..min(columns.len(), row.len()) {
-        columns[i].add_sample(row[i].len());
+        columns[i].add_sample(&row[i]);
     }
     for i in columns.len()..row.len() {
-        let mut col = Column::new(row[i].len());
+        let mut col = Column::new(row[i].len(), collect_info);
         let col_num = (i + 1) as u32;
 
         let included = include_cols
