@@ -89,6 +89,9 @@ fn run() -> Result<()> {
              .value_name("DELIM")
              .number_of_values(1)
              .help("Use characters of DELIM as column delimiters [default: \" \\t\"]"))
+        .arg(Arg::with_name("strict-delimiter")
+             .short("s").long("strict")
+             .help("Parse columns as strictly being delimited by a single delimiter"))
         .arg(Arg::with_name("column-info")
              .long("column-info")
              .help("Print information about the columns"))
@@ -152,6 +155,8 @@ forms:
     let opt_delim = matches
         .value_of("delimiter")
         .unwrap_or(" \t");
+    let opt_strict_delim = matches
+        .is_present("strict-delimiter");
 
     let opt_print_info = matches.is_present("column-info");
 
@@ -176,7 +181,7 @@ forms:
             ProcessingState::Measuring { mut backlog } => {
                 if let Some(line) = lines.next() {
                     let line = line?;
-                    split_line(&line, &mut row, opt_delim);
+                    split_line(&line, &mut row, opt_delim, opt_strict_delim);
                     update_columns(
                         &mut columns,
                         &row[..],
@@ -219,7 +224,7 @@ forms:
             ProcessingState::ProcessInput => {
                 if let Some(line) = lines.next() {
                     let line = line?;
-                    split_line(&line, &mut row, opt_delim);
+                    split_line(&line, &mut row, opt_delim, opt_strict_delim);
                     print_row(&mut stdout, &columns[..], &row[..])?;
                     row.clear();
 
@@ -234,13 +239,14 @@ forms:
     Ok(())
 }
 
+#[derive(Eq, PartialEq)]
 enum State {
     Whitespace,
     NonWhitespace,
     EndDelim(char),
 }
 
-fn split_line(input: &str, row: &mut Vec<String>, delim: &str) {
+fn split_line(input: &str, row: &mut Vec<String>, delim: &str, strict_delim: bool) {
     use State::*;
 
     let mut state = Whitespace;
@@ -254,7 +260,7 @@ fn split_line(input: &str, row: &mut Vec<String>, delim: &str) {
         match state {
             Whitespace => {
                 // println!("whitespace");
-                if ch == '(' || ch == '[' || ch == '"' {
+                if !strict_delim && (ch == '(' || ch == '[' || ch == '"') {
                     let end_delim = match ch {
                         '(' => ')',
                         '[' => ']',
@@ -266,6 +272,8 @@ fn split_line(input: &str, row: &mut Vec<String>, delim: &str) {
                 } else if !delim.contains(ch) {
                     start = Some(i);
                     state = NonWhitespace;
+                } else if strict_delim {
+                    row.push("".to_owned());
                 }
             }
             NonWhitespace => {
@@ -299,6 +307,8 @@ fn split_line(input: &str, row: &mut Vec<String>, delim: &str) {
     if let Some(s) = start {
         // println!("output = {:?}", &input[s..i]);
         row.push(input[s..i].to_owned());
+    } else if strict_delim && state == Whitespace {
+        row.push("".to_owned());
     }
 }
 
@@ -363,4 +373,81 @@ fn print_row<W: Write>(
     }
     write!(out, "\n")?;
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::split_line;
+
+    macro_rules! assert_vec {
+        ($x:ident, [ $( $y:expr ),* ]) => {
+           assert_eq!(&$x[..], &[$( $y.to_owned() ),*]);
+        };
+    }
+
+    #[test]
+    fn test_split_line_simple() {
+        let mut row = Vec::new();
+        split_line("a b c", &mut row, " ", false);
+        assert_vec!(row, ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_split_line_collapse() {
+        let mut row = Vec::new();
+        split_line("a   b    c", &mut row, " ", false);
+        assert_vec!(row, ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_split_line_ignore_leading_and_trailing() {
+        let mut row = Vec::new();
+        split_line("   a   b    c   ", &mut row, " ", false);
+        assert_vec!(row, ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_split_line_empty() {
+        let mut row = Vec::new();
+        split_line("", &mut row, " ", false);
+        assert!(row.is_empty());
+
+        row.clear();
+        split_line(" ", &mut row, " ", false);
+        assert!(row.is_empty());
+    }
+
+    #[test]
+    fn test_split_line_strict() {
+        let mut row = Vec::new();
+        split_line("a b c", &mut row, " ", true);
+        assert_vec!(row, ["a", "b", "c"]);
+
+        row.clear();
+        split_line(" a b  c", &mut row, " ", true);
+        assert_vec!(row, ["", "a", "b", "", "c"]);
+    }
+
+    #[test]
+    fn test_split_line_strict_trailing_whitespace() {
+        let mut row = Vec::new();
+        split_line("a ", &mut row, " ", true);
+        assert_vec!(row, ["a", ""]);
+
+        row.clear();
+        split_line("a  ", &mut row, " ", true);
+        assert_vec!(row, ["a", "", ""]);
+    }
+
+    #[test]
+    fn test_split_line_strict_empty() {
+        let mut row = Vec::new();
+        split_line("", &mut row, " ", true);
+        assert_vec!(row, [""]);
+
+        row.clear();
+        split_line(" ", &mut row, " ", true);
+        assert_vec!(row, ["", ""]);
+    }
 }

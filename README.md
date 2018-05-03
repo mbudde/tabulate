@@ -63,6 +63,7 @@ USAGE:
 FLAGS:
         --column-info    Print information about the columns
     -h, --help           Prints help information
+    -s, --strict         Parse columns as strictly being delimited by a single delimiter
     -V, --version        Prints version information
 
 OPTIONS:
