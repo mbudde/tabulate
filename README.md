@@ -46,6 +46,14 @@ aaa       bb   ccc
 aaaaa     b    ccccc
 ```
 
+## Installing
+
+```
+cargo install tabulate
+```
+
+## Options
+
 ```
 tabulate
 
