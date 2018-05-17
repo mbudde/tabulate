@@ -11,6 +11,8 @@ use clap::{App, Arg};
 mod column;
 mod range;
 
+const BUILD_INFO: &'static str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
+
 mod errors {
     error_chain!{
         foreign_links {
@@ -49,6 +51,7 @@ fn main() {
 
 fn run() -> Result<()> {
     let matches = App::new("tabulate")
+        .version(format!("{} ({})", env!("CARGO_PKG_VERSION"), BUILD_INFO).as_str())
         .arg(Arg::with_name("truncate")
              .short("t").long("truncate")
              .value_name("LIST")
