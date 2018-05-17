@@ -33,7 +33,7 @@ mod errors {
     }
 }
 
-use column::Column;
+use column::{Column, MeasureColumn};
 use errors::*;
 use range::{Range, Ranges};
 
@@ -176,6 +176,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
     }
 
     let mut state = ProcessingState::Measuring { backlog: Vec::new() };
+    let mut measure_columns = Vec::new();
     let mut columns = Vec::new();
     let mut row = Vec::new();
     let mut lines = stdin.lock().lines();
@@ -187,7 +188,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
                     let line = line?;
                     split_line(&line, &mut row, opt_delim, opt_strict_delim);
                     update_columns(
-                        &mut columns,
+                        &mut measure_columns,
                         &row[..],
                         opt_include_cols.as_ref(),
                         &opt_exclude_cols,
@@ -206,12 +207,9 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
                 }
             }
             ProcessingState::PrintBacklog { backlog } => {
-                for col in &mut columns {
-                    col.calculate_size(opt_ratio);
-                }
+                columns.extend(measure_columns.drain(..).map(|c| c.calculate_size(opt_ratio)));
                 if opt_print_info {
                     for (i, col) in columns.iter_mut().enumerate() {
-                        col.calculate_size(opt_ratio);
                         write!(stdout, "Column {}\n", i + 1)?;
                         col.print_info(&mut stdout)?;
                         write!(stdout, "\n")?;
@@ -317,7 +315,7 @@ fn split_line(input: &str, row: &mut Vec<String>, delim: &str, strict_delim: boo
 }
 
 fn update_columns(
-    columns: &mut Vec<Column>,
+    columns: &mut Vec<MeasureColumn>,
     row: &[String],
     include_cols: Option<&Ranges>,
     excluded_cols: &Ranges,
@@ -328,7 +326,7 @@ fn update_columns(
         columns[i].add_sample(&row[i]);
     }
     for i in columns.len()..row.len() {
-        let mut col = Column::new(row[i].len(), collect_info);
+        let mut col = MeasureColumn::new(row[i].len(), collect_info);
         let col_num = (i + 1) as u32;
 
         let included = include_cols
