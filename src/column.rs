@@ -126,12 +126,20 @@ impl Column {
         self.opts.excluded
     }
 
-    pub fn is_truncated(&self) -> bool {
-        self.opts.truncated
-    }
-
-    pub fn size(&self) -> usize {
-        self.size
+    pub fn print_cell<W: Write>(&self, out: &mut W, cell: &str, overflow: usize) -> io::Result<usize> {
+        let out_width = self.size.saturating_sub(overflow);
+        if self.opts.truncated && cell.len() > out_width {
+            if out_width > 0 {
+                write!(out, "{}…", &cell[0..out_width - 1])?;
+                Ok(0)
+            } else {
+                write!(out, "…")?;
+                Ok(1)
+            }
+        } else {
+            write!(out, "{:1$}", cell, out_width)?;
+            Ok(cell.len().saturating_sub(out_width))
+        }
     }
 
     pub fn print_info<W: Write>(&mut self, out: &mut W) -> io::Result<()> {

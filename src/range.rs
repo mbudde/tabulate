@@ -54,6 +54,7 @@ impl FromStr for Range {
     }
 }
 
+#[derive(Debug)]
 pub struct Ranges(pub Vec<Range>);
 
 impl Ranges {

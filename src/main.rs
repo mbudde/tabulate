@@ -4,7 +4,7 @@ extern crate combine;
 extern crate error_chain;
 
 use std::io::{self, Write, BufRead};
-use std::cmp::{min, max};
+use std::cmp::min;
 
 use clap::{App, AppSettings, Arg};
 
@@ -351,26 +351,16 @@ fn print_row<W: Write>(
     row: &[String],
 ) -> io::Result<()> {
     let mut first = true;
-    let mut goal: usize = 0;
-    let mut used: usize = 0;
-    for (cell, col) in row.iter().zip(columns.iter()).filter(
-        |&(_, col)| !col.is_excluded(),
+    let mut overflow: usize = 0;
+    for (cell, col) in row.iter().zip(columns).filter(
+        |&(_, col)| !col.is_excluded()
     )
     {
         if !first {
             write!(out, "  ")?;
         }
         first = false;
-        let width = col.size();
-        let out_width = width.saturating_sub(used.saturating_sub(goal));
-        if col.is_truncated() && cell.len() > out_width {
-            write!(out, "{}…", &cell[0..out_width - 1])?;
-            used += out_width;
-        } else {
-            write!(out, "{:1$}", cell, out_width)?;
-            used += max(out_width, cell.len());
-        }
-        goal += width;
+        overflow = col.print_cell(out, cell, overflow)?;
     }
     write!(out, "\n")?;
     Ok(())
