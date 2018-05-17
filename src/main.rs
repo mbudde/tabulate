@@ -147,10 +147,9 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
         .unwrap_or(Ok(None))?;
 
     let opt_exclude_cols = matches
-        .value_of("exclude")
+        .values_of("exclude")
         .map(|m| {
-            m.split(',')
-                .map(|s| s.parse())
+            m.map(|s| s.parse())
                 .collect::<Result<Ranges>>()
                 .chain_err(|| "invalid argument to -x/--exclude")
         })
