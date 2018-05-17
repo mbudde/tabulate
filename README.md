@@ -60,16 +60,14 @@ tabulate
 USAGE:
     tabulate [OPTIONS]
 
-FLAGS:
-        --column-info    Print information about the columns
-    -h, --help           Prints help information
-    -s, --strict         Parse columns as strictly being delimited by a single delimiter
-    -V, --version        Prints version information
-
 OPTIONS:
+        --column-info
+            Print information about the columns
+
     -c, --compress-cols <RATIO>
             Control how much columns are compressed. Set to 0 to disable column
-            compression [default: 1.0]
+            compression, i.e. columns are sized to fit the largest value [default:
+            1.0]
     -d, --delimiter <DELIM>
             Use characters of DELIM as column delimiters [default: " \t"]
 
@@ -79,11 +77,22 @@ OPTIONS:
     -x, --exclude <LIST>
             Select which columns should be excluded from the output. This option
             takes precedence over --include
-    -i, --include <LIST>           Select which columns to include in the output
+    -h, --help
+            Prints help information
+
+    -i, --include <LIST>
+            Select which columns to include in the output
+
+    -s, --strict
+            Parse columns as strictly being delimited by a single delimiter
+
     -t, --truncate <LIST>
             Truncate data that does not fit in a column. Takes an optional list of
             columns that should be truncated. If no LIST is given all columns are
             truncated
+    -V, --version
+            Prints version information
+
 
 LIST should be a comma-separated list of ranges. Each range should be of one of the
 following forms:

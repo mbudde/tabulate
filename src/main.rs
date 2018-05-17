@@ -6,7 +6,7 @@ extern crate error_chain;
 use std::io::{self, Write, BufRead};
 use std::cmp::{min, max};
 
-use clap::{App, Arg};
+use clap::{App, AppSettings, Arg};
 
 mod column;
 mod range;
@@ -52,6 +52,8 @@ fn main() {
 fn run() -> Result<()> {
     let matches = App::new("tabulate")
         .version(format!("{} ({})", env!("CARGO_PKG_VERSION"), BUILD_INFO).as_str())
+        .setting(AppSettings::UnifiedHelpMessage)
+        .setting(AppSettings::NextLineHelp)
         .arg(Arg::with_name("truncate")
              .short("t").long("truncate")
              .value_name("LIST")
@@ -99,8 +101,7 @@ fn run() -> Result<()> {
              .long("column-info")
              .help("Print information about the columns"))
         .after_help(
-r#"LIST should be a comma-separated list of ranges. Each range should be of one of the following
-forms:
+r#"LIST should be a comma-separated list of ranges. Each range should be of one of the following forms:
 
   N       N'th column, starting at 1
   N-      from N'th column to end of line
