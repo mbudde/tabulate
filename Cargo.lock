@@ -149,7 +149,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "tabulate"
-version = "1.0.2"
+version = "1.0.3-pre"
 dependencies = [
  "clap 2.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "combine 3.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
