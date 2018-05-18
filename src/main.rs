@@ -51,7 +51,7 @@ fn main() {
 
 fn run() -> Result<()> {
     let matches = App::new("tabulate")
-        .version(format!("{} ({})", env!("CARGO_PKG_VERSION"), BUILD_INFO).as_str())
+        .version(format!("{}{}", env!("CARGO_PKG_VERSION"), BUILD_INFO).as_str())
         .setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::NextLineHelp)
         .arg(Arg::with_name("truncate")

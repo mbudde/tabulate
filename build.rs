@@ -9,22 +9,24 @@ fn main() {
     path.push(env::var("OUT_DIR").unwrap());
     path.push("build-info.txt");
 
-    let output = Command::new("git")
+    let hash = Command::new("git")
         .args(&["rev-parse", "HEAD"])
         .output()
-        .expect("Failed to execute command");
+        .map(|out| out.stdout)
+        .map(|mut hash| { hash.truncate(9); hash });
 
-    let hash = &output.stdout[0..8];
-
-    let output = Command::new("date")
+    let date = Command::new("date")
         .arg("+%Y-%m-%d")
         .output()
-        .expect("Failed to execute command");
-
-    let date = &output.stdout[0..10];
+        .map(|out| out.stdout)
+        .map(|mut hash| { hash.truncate(10); hash });
 
     let mut file = File::create(path).unwrap();
-    file.write_all(hash).unwrap();
-    file.write_all(b" ").unwrap();
-    file.write_all(date).unwrap();
+    if let (Ok(h), Ok(d)) = (hash, date) {
+        file.write_all(b" (").unwrap();
+        file.write_all(&h).unwrap();
+        file.write_all(b" ").unwrap();
+        file.write_all(&d).unwrap();
+        file.write_all(b")").unwrap();
+    }
 }
