@@ -8,10 +8,14 @@ use std::cmp::min;
 
 use clap::{App, AppSettings, Arg};
 
+use column::{Column, MeasureColumn};
+use errors::*;
+use range::{Range, Ranges};
+use parser::Row;
+
 mod column;
 mod range;
-
-const BUILD_INFO: &'static str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
+mod parser;
 
 mod errors {
     error_chain!{
@@ -33,9 +37,7 @@ mod errors {
     }
 }
 
-use column::{Column, MeasureColumn};
-use errors::*;
-use range::{Range, Ranges};
+const BUILD_INFO: &'static str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
 
 fn main() {
     match run() {
@@ -169,15 +171,15 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
 
     #[derive(Debug)]
     enum ProcessingState {
-        Measuring { backlog: Vec<Vec<String>> },
-        PrintBacklog { backlog: Vec<Vec<String>> },
+        Measuring { backlog: Vec<Row> },
+        PrintBacklog { backlog: Vec<Row> },
         ProcessInput,
     }
 
     let mut state = ProcessingState::Measuring { backlog: Vec::new() };
     let mut measure_columns = Vec::new();
     let mut columns = Vec::new();
-    let mut row = Vec::new();
+    let mut row = Row::new();
     let mut lines = stdin.lock().lines();
 
     loop {
@@ -185,17 +187,16 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
             ProcessingState::Measuring { mut backlog } => {
                 if let Some(line) = lines.next() {
                     let line = line?;
-                    split_line(&line, &mut row, opt_delim, opt_strict_delim);
+                    row.parse(line, opt_delim, opt_strict_delim);
                     update_columns(
                         &mut measure_columns,
-                        &row[..],
+                        &row,
                         opt_include_cols.as_ref(),
                         &opt_exclude_cols,
                         opt_truncate.as_ref(),
                         opt_print_info,
                     );
                     backlog.push(row.clone());
-                    row.clear();
                     if backlog.len() >= opt_lines {
                         ProcessingState::PrintBacklog { backlog }
                     } else {
@@ -225,9 +226,8 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
             ProcessingState::ProcessInput => {
                 if let Some(line) = lines.next() {
                     let line = line?;
-                    split_line(&line, &mut row, opt_delim, opt_strict_delim);
-                    print_row(&mut stdout, &columns[..], &row[..])?;
-                    row.clear();
+                    row.parse(line, opt_delim, opt_strict_delim);
+                    print_row(&mut stdout, &columns[..], &row)?;
 
                     ProcessingState::ProcessInput
                 } else {
@@ -240,82 +240,9 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
     Ok(())
 }
 
-#[derive(Eq, PartialEq)]
-enum State {
-    Whitespace,
-    NonWhitespace,
-    EndDelim(char),
-}
-
-fn split_line(input: &str, row: &mut Vec<String>, delim: &str, strict_delim: bool) {
-    use State::*;
-
-    let mut state = Whitespace;
-
-    let mut start = None;
-    let mut i = 0;
-    let mut chars = input.chars();
-    let mut current_char = chars.next();
-    while let Some(ch) = current_char.take() {
-        // print!("{} ", ch);
-        match state {
-            Whitespace => {
-                // println!("whitespace");
-                if !strict_delim && (ch == '(' || ch == '[' || ch == '"') {
-                    let end_delim = match ch {
-                        '(' => ')',
-                        '[' => ']',
-                        '"' => '"',
-                        _ => unimplemented!(),
-                    };
-                    start = Some(i);
-                    state = EndDelim(end_delim);
-                } else if !delim.contains(ch) {
-                    start = Some(i);
-                    state = NonWhitespace;
-                } else if strict_delim {
-                    row.push("".to_owned());
-                }
-            }
-            NonWhitespace => {
-                // println!("non-whitespace");
-                if delim.contains(ch) {
-                    if let Some(s) = start {
-                        // println!("output = {:?}", &input[s..i]);
-                        row.push(input[s..i].to_owned());
-                    }
-                    start = None;
-                    state = Whitespace;
-                }
-            }
-            EndDelim(delim) => {
-                // println!("end-delim({})", delim);
-                if ch == delim {
-                    if let Some(s) = start {
-                        // println!("output = {:?}", &input[s..i+1]);
-                        row.push(input[s..i + 1].to_owned());
-                    }
-                    start = None;
-                    state = Whitespace;
-                }
-            }
-        }
-        if current_char.is_none() {
-            current_char = chars.next();
-            i += 1;
-        }
-    }
-    if let Some(s) = start {
-        // println!("output = {:?}", &input[s..i]);
-        row.push(input[s..i].to_owned());
-    } else if strict_delim && state == Whitespace {
-        row.push("".to_owned());
-    }
-}
-
 fn update_columns(
     columns: &mut Vec<MeasureColumn>,
-    row: &[String],
+    row: &Row,
     include_cols: Option<&Ranges>,
     excluded_cols: &Ranges,
     truncate_cols: Option<&Ranges>,
@@ -348,11 +275,11 @@ fn update_columns(
 fn print_row<W: Write>(
     out: &mut W,
     columns: &[Column],
-    row: &[String],
+    row: &Row,
 ) -> io::Result<()> {
     let mut first = true;
     let mut overflow: usize = 0;
-    for (cell, col) in row.iter().zip(columns).filter(
+    for (cell, col) in row.get_parts().zip(columns).filter(
         |&(_, col)| !col.is_excluded()
     )
     {
@@ -364,81 +291,4 @@ fn print_row<W: Write>(
     }
     write!(out, "\n")?;
     Ok(())
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::split_line;
-
-    macro_rules! assert_vec {
-        ($x:ident, [ $( $y:expr ),* ]) => {
-           assert_eq!(&$x[..], &[$( $y.to_owned() ),*]);
-        };
-    }
-
-    #[test]
-    fn test_split_line_simple() {
-        let mut row = Vec::new();
-        split_line("a b c", &mut row, " ", false);
-        assert_vec!(row, ["a", "b", "c"]);
-    }
-
-    #[test]
-    fn test_split_line_collapse() {
-        let mut row = Vec::new();
-        split_line("a   b    c", &mut row, " ", false);
-        assert_vec!(row, ["a", "b", "c"]);
-    }
-
-    #[test]
-    fn test_split_line_ignore_leading_and_trailing() {
-        let mut row = Vec::new();
-        split_line("   a   b    c   ", &mut row, " ", false);
-        assert_vec!(row, ["a", "b", "c"]);
-    }
-
-    #[test]
-    fn test_split_line_empty() {
-        let mut row = Vec::new();
-        split_line("", &mut row, " ", false);
-        assert!(row.is_empty());
-
-        row.clear();
-        split_line(" ", &mut row, " ", false);
-        assert!(row.is_empty());
-    }
-
-    #[test]
-    fn test_split_line_strict() {
-        let mut row = Vec::new();
-        split_line("a b c", &mut row, " ", true);
-        assert_vec!(row, ["a", "b", "c"]);
-
-        row.clear();
-        split_line(" a b  c", &mut row, " ", true);
-        assert_vec!(row, ["", "a", "b", "", "c"]);
-    }
-
-    #[test]
-    fn test_split_line_strict_trailing_whitespace() {
-        let mut row = Vec::new();
-        split_line("a ", &mut row, " ", true);
-        assert_vec!(row, ["a", ""]);
-
-        row.clear();
-        split_line("a  ", &mut row, " ", true);
-        assert_vec!(row, ["a", "", ""]);
-    }
-
-    #[test]
-    fn test_split_line_strict_empty() {
-        let mut row = Vec::new();
-        split_line("", &mut row, " ", true);
-        assert_vec!(row, [""]);
-
-        row.clear();
-        split_line(" ", &mut row, " ", true);
-        assert_vec!(row, ["", ""]);
-    }
 }

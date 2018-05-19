@@ -1,13 +1,12 @@
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 
 fn main() {
-    let mut path = PathBuf::new();
-    path.push(env::var("OUT_DIR").unwrap());
-    path.push("build-info.txt");
+    let path = Path::new(&env::var("OUT_DIR").unwrap())
+        .join("build-info.txt");
 
     let hash = Command::new("git")
         .args(&["rev-parse", "HEAD"])
