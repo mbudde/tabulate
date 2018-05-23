@@ -1,5 +1,8 @@
 #!/bin/bash
 
+export CFLAGS=
+export CXXFLAGS=
+
 # Cargo-fuzz needs nightly rust, so switch this project to nightly
 rustup override set nightly
 
