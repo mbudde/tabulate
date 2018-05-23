@@ -1,41 +1,15 @@
 extern crate clap;
-extern crate combine;
-#[macro_use]
 extern crate error_chain;
-
-use std::io::{self, Write, BufRead};
-use std::cmp::min;
+extern crate tabulate;
 
 use clap::{App, AppSettings, Arg};
 
-use column::{Column, MeasureColumn};
-use errors::*;
-use range::{Range, Ranges};
-use parser::{Row, RowParser};
+use tabulate::{
+    Options,
+    range::{Range, Ranges},
+    errors::*,
+};
 
-mod column;
-mod range;
-mod parser;
-
-mod errors {
-    error_chain!{
-        foreign_links {
-            Io(::std::io::Error);
-        }
-
-        errors {
-            RangeParseError(s: String) {
-                display("could not parse '{}' as a range", s)
-            }
-            InvalidDecreasingRange(s: String) {
-                display("invalid decreasing range: {}", s)
-            }
-            ColumnsStartAtOne {
-                display("columns are numbered starting from 1")
-            }
-        }
-    }
-}
 
 const BUILD_INFO: &'static str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
 
@@ -159,137 +133,24 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
 
     let opt_delim = matches
         .value_of("delimiter")
-        .unwrap_or(" \t");
-    let opt_strict_delim = matches
-        .is_present("strict-delimiter");
+        .unwrap_or(" \t")
+        .to_string();
 
-    let opt_print_info = matches.is_present("column-info");
+    let opts = Options {
+        truncate: opt_truncate,
+        ratio: opt_ratio,
+        lines: opt_lines,
+        include_cols: opt_include_cols,
+        exclude_cols: opt_exclude_cols,
+        delim: opt_delim,
+        strict_delim: matches.is_present("strict-delimiter"),
+        print_info: matches.is_present("column-info"),
+    };
 
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
-    let mut stdout = stdout.lock();
+    let stdin = stdin.lock();
+    let stdout = stdout.lock();
 
-    #[derive(Debug)]
-    enum ProcessingState {
-        Measuring { backlog: Vec<Row> },
-        PrintBacklog { backlog: Vec<Row> },
-        ProcessInput,
-    }
-
-    let mut state = ProcessingState::Measuring { backlog: Vec::new() };
-    let mut measure_columns = Vec::new();
-    let mut columns = Vec::new();
-    let parser = RowParser::new(opt_delim, opt_strict_delim);
-    let mut row = Row::new();
-    let mut lines = stdin.lock().lines();
-
-    loop {
-        state = match state {
-            ProcessingState::Measuring { mut backlog } => {
-                if let Some(line) = lines.next() {
-                    let line = line?;
-                    parser.parse_into(&mut row, line);
-                    update_columns(
-                        &mut measure_columns,
-                        &row,
-                        opt_include_cols.as_ref(),
-                        &opt_exclude_cols,
-                        opt_truncate.as_ref(),
-                        opt_print_info,
-                    );
-                    backlog.push(row.clone());
-                    if backlog.len() >= opt_lines {
-                        ProcessingState::PrintBacklog { backlog }
-                    } else {
-                        ProcessingState::Measuring { backlog }
-                    }
-                } else {
-                    ProcessingState::PrintBacklog { backlog }
-                }
-            }
-            ProcessingState::PrintBacklog { backlog } => {
-                columns.extend(measure_columns.drain(..).map(|c| c.calculate_size(opt_ratio)));
-                if opt_print_info {
-                    for (i, col) in columns.iter_mut().enumerate() {
-                        write!(stdout, "Column {}\n", i + 1)?;
-                        col.print_info(&mut stdout)?;
-                        write!(stdout, "\n")?;
-                    }
-                    return Ok(());
-                }
-
-                for row in &backlog {
-                    print_row(&mut stdout, &columns[..], row)?;
-                }
-
-                ProcessingState::ProcessInput
-            }
-            ProcessingState::ProcessInput => {
-                if let Some(line) = lines.next() {
-                    let line = line?;
-                    parser.parse_into(&mut row, line);
-                    print_row(&mut stdout, &columns[..], &row)?;
-
-                    ProcessingState::ProcessInput
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn update_columns(
-    columns: &mut Vec<MeasureColumn>,
-    row: &Row,
-    include_cols: Option<&Ranges>,
-    excluded_cols: &Ranges,
-    truncate_cols: Option<&Ranges>,
-    collect_info: bool,
-) {
-    for i in 0..min(columns.len(), row.len()) {
-        columns[i].add_sample(&row[i]);
-    }
-    for i in columns.len()..row.len() {
-        let mut col = MeasureColumn::new(row[i].len(), collect_info);
-        let col_num = (i + 1) as u32;
-
-        let included = include_cols
-            .map(|rs| rs.any_contains(col_num))
-            .unwrap_or(true);
-
-        let excluded = excluded_cols.any_contains(col_num);
-
-        let truncated = truncate_cols
-            .map(|rs| rs.any_contains(col_num))
-            .unwrap_or(false);
-
-        col.set_excluded(!included || excluded);
-        col.set_truncated(truncated);
-
-        columns.push(col);
-    }
-}
-
-fn print_row<W: Write>(
-    out: &mut W,
-    columns: &[Column],
-    row: &Row,
-) -> io::Result<()> {
-    let mut first = true;
-    let mut overflow: usize = 0;
-    for (cell, col) in row.get_parts().zip(columns).filter(
-        |&(_, col)| !col.is_excluded()
-    )
-    {
-        if !first {
-            write!(out, "  ")?;
-        }
-        first = false;
-        overflow = col.print_cell(out, cell, overflow)?;
-    }
-    write!(out, "\n")?;
-    Ok(())
+    tabulate::process(stdin, stdout, opts)
 }

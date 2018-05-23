@@ -1,0 +1,174 @@
+extern crate combine;
+#[macro_use]
+extern crate error_chain;
+
+use std::io::{self, Write, BufRead};
+use std::cmp::min;
+
+use column::{Column, MeasureColumn};
+use errors::*;
+use range::{Range, Ranges};
+use parser::{Row, RowParser};
+
+pub mod column;
+pub mod range;
+pub mod parser;
+
+pub mod errors {
+    error_chain!{
+        foreign_links {
+            Io(::std::io::Error);
+        }
+
+        errors {
+            RangeParseError(s: String) {
+                display("could not parse '{}' as a range", s)
+            }
+            InvalidDecreasingRange(s: String) {
+                display("invalid decreasing range: {}", s)
+            }
+            ColumnsStartAtOne {
+                display("columns are numbered starting from 1")
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Options {
+    pub truncate: Option<Ranges>,
+    pub ratio: f64,
+    pub lines: usize,
+    pub include_cols: Option<Ranges>,
+    pub exclude_cols: Ranges,
+    pub delim: String,
+    pub strict_delim: bool,
+    pub print_info: bool,
+}
+
+pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: Options) -> Result<()> {
+
+    #[derive(Debug)]
+    enum ProcessingState {
+        Measuring { backlog: Vec<Row> },
+        PrintBacklog { backlog: Vec<Row> },
+        ProcessInput,
+    }
+
+    let mut state = ProcessingState::Measuring { backlog: Vec::new() };
+    let mut measure_columns = Vec::new();
+    let mut columns = Vec::new();
+    let parser = RowParser::new(opts.delim.clone(), opts.strict_delim);
+    let mut row = Row::new();
+    let mut lines = input.lines();
+
+    loop {
+        state = match state {
+            ProcessingState::Measuring { mut backlog } => {
+                if let Some(line) = lines.next() {
+                    let line = line?;
+                    parser.parse_into(&mut row, line);
+                    update_columns(
+                        &mut measure_columns,
+                        &row,
+                        opts.include_cols.as_ref(),
+                        &opts.exclude_cols,
+                        opts.truncate.as_ref(),
+                        opts.print_info,
+                    );
+                    backlog.push(row.clone());
+                    if backlog.len() >= opts.lines {
+                        ProcessingState::PrintBacklog { backlog }
+                    } else {
+                        ProcessingState::Measuring { backlog }
+                    }
+                } else {
+                    ProcessingState::PrintBacklog { backlog }
+                }
+            }
+            ProcessingState::PrintBacklog { backlog } => {
+                columns.extend(measure_columns.drain(..).map(|c| c.calculate_size(opts.ratio)));
+                if opts.print_info {
+                    for (i, col) in columns.iter_mut().enumerate() {
+                        write!(output, "Column {}\n", i + 1)?;
+                        col.print_info(&mut output)?;
+                        write!(output, "\n")?;
+                    }
+                    return Ok(());
+                }
+
+                for row in &backlog {
+                    print_row(&mut output, &columns[..], row)?;
+                }
+
+                ProcessingState::ProcessInput
+            }
+            ProcessingState::ProcessInput => {
+                if let Some(line) = lines.next() {
+                    let line = line?;
+                    parser.parse_into(&mut row, line);
+                    print_row(&mut output, &columns[..], &row)?;
+
+                    ProcessingState::ProcessInput
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn update_columns(
+    columns: &mut Vec<MeasureColumn>,
+    row: &Row,
+    include_cols: Option<&Ranges>,
+    excluded_cols: &Ranges,
+    truncate_cols: Option<&Ranges>,
+    collect_info: bool,
+) {
+    for i in 0..min(columns.len(), row.len()) {
+        columns[i].add_sample(&row[i]);
+    }
+    for i in columns.len()..row.len() {
+        let mut col = MeasureColumn::new(row[i].len(), collect_info);
+        let col_num = (i + 1) as u32;
+
+        let included = include_cols
+            .map(|rs| rs.any_contains(col_num))
+            .unwrap_or(true);
+
+        let excluded = excluded_cols.any_contains(col_num);
+
+        let truncated = truncate_cols
+            .map(|rs| rs.any_contains(col_num))
+            .unwrap_or(false);
+
+        col.set_excluded(!included || excluded);
+        col.set_truncated(truncated);
+
+        columns.push(col);
+    }
+}
+
+fn print_row<W: Write>(
+    out: &mut W,
+    columns: &[Column],
+    row: &Row,
+) -> io::Result<()> {
+    let mut first = true;
+    let mut overflow: usize = 0;
+    for (cell, col) in row.get_parts().zip(columns).filter(
+        |&(_, col)| !col.is_excluded()
+    )
+    {
+        if !first {
+            write!(out, "  ")?;
+        }
+        first = false;
+        overflow = col.print_cell(out, cell, overflow)?;
+    }
+    write!(out, "\n")?;
+    Ok(())
+}
