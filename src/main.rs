@@ -11,7 +11,7 @@ use clap::{App, AppSettings, Arg};
 use column::{Column, MeasureColumn};
 use errors::*;
 use range::{Range, Ranges};
-use parser::Row;
+use parser::{Row, RowParser};
 
 mod column;
 mod range;
@@ -179,6 +179,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
     let mut state = ProcessingState::Measuring { backlog: Vec::new() };
     let mut measure_columns = Vec::new();
     let mut columns = Vec::new();
+    let parser = RowParser::new(opt_delim, opt_strict_delim);
     let mut row = Row::new();
     let mut lines = stdin.lock().lines();
 
@@ -187,7 +188,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
             ProcessingState::Measuring { mut backlog } => {
                 if let Some(line) = lines.next() {
                     let line = line?;
-                    row.parse(line, opt_delim, opt_strict_delim);
+                    parser.parse_into(&mut row, line);
                     update_columns(
                         &mut measure_columns,
                         &row,
@@ -226,7 +227,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
             ProcessingState::ProcessInput => {
                 if let Some(line) = lines.next() {
                     let line = line?;
-                    row.parse(line, opt_delim, opt_strict_delim);
+                    parser.parse_into(&mut row, line);
                     print_row(&mut stdout, &columns[..], &row)?;
 
                     ProcessingState::ProcessInput

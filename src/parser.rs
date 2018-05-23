@@ -1,10 +1,3 @@
-#[derive(Eq, PartialEq)]
-enum ParseState {
-    Whitespace,
-    NonWhitespace,
-    EndDelim(char),
-}
-
 
 #[derive(Clone, Debug)]
 pub struct Row {
@@ -27,25 +20,56 @@ impl Row {
     pub fn len(&self) -> usize {
         self.parts.len()
     }
+}
 
-    pub fn parse<S: Into<String>>(&mut self, line: S, delim: &str, strict_delim: bool) {
+impl ::std::ops::Index<usize> for Row {
+    type Output = str;
+
+    fn index(&self, index: usize) -> &str {
+        let (i, j) = self.parts[index];
+        &self.line[i..j]
+    }
+}
+
+
+#[derive(Eq, PartialEq)]
+enum ParseState {
+    Whitespace,
+    NonWhitespace,
+    EndDelim(char),
+}
+
+pub struct RowParser {
+    delim: String,
+    strict_delim: bool
+}
+
+impl RowParser {
+    pub fn new<S: Into<String>>(delim: S, strict_delim: bool) -> RowParser {
+        RowParser {
+            delim: delim.into(),
+            strict_delim,
+        }
+    }
+
+    pub fn parse_into<S: Into<String>>(&self, row: &mut Row, line: S) {
         use self::ParseState::*;
 
-        self.line = line.into();
-        self.parts.clear();
+        row.line = line.into();
+        row.parts.clear();
 
         let mut state = Whitespace;
 
         let mut start = None;
         let mut i = 0;
-        let mut chars = self.line.chars();
+        let mut chars = row.line.chars();
         let mut current_char = chars.next();
         while let Some(ch) = current_char.take() {
             // print!("{} ", ch);
             match state {
                 Whitespace => {
                     // println!("whitespace");
-                    if !strict_delim && (ch == '(' || ch == '[' || ch == '"') {
+                    if !self.strict_delim && (ch == '(' || ch == '[' || ch == '"') {
                         let end_delim = match ch {
                             '(' => ')',
                             '[' => ']',
@@ -54,19 +78,19 @@ impl Row {
                         };
                         start = Some(i);
                         state = EndDelim(end_delim);
-                    } else if !delim.contains(ch) {
+                    } else if !self.delim.contains(ch) {
                         start = Some(i);
                         state = NonWhitespace;
-                    } else if strict_delim {
-                        self.parts.push((i, i));
+                    } else if self.strict_delim {
+                        row.parts.push((i, i));
                     }
                 }
                 NonWhitespace => {
                     // println!("non-whitespace");
-                    if delim.contains(ch) {
+                    if self.delim.contains(ch) {
                         if let Some(s) = start {
                             // println!("output = {:?}", &input[s..i]);
-                            self.parts.push((s, i));
+                            row.parts.push((s, i));
                         }
                         start = None;
                         state = Whitespace;
@@ -77,7 +101,7 @@ impl Row {
                     if ch == delim {
                         if let Some(s) = start {
                             // println!("output = {:?}", &input[s..i+1]);
-                            self.parts.push((s, i + 1));
+                            row.parts.push((s, i + 1));
                         }
                         start = None;
                         state = Whitespace;
@@ -91,19 +115,10 @@ impl Row {
         }
         if let Some(s) = start {
             // println!("output = {:?}", &input[s..i]);
-            self.parts.push((s, i));
-        } else if strict_delim && state == Whitespace {
-            self.parts.push((i, i));
+            row.parts.push((s, i));
+        } else if self.strict_delim && state == Whitespace {
+            row.parts.push((i, i));
         }
-    }
-}
-
-impl ::std::ops::Index<usize> for Row {
-    type Output = str;
-
-    fn index(&self, index: usize) -> &str {
-        let (i, j) = self.parts[index];
-        &self.line[i..j]
     }
 }
 
@@ -120,62 +135,69 @@ mod tests {
 
     #[test]
     fn test_split_line_simple() {
+        let parser = RowParser::new(" ", false);
         let mut row = Row::new();
-        row.parse("a b c", " ", false);
+        parser.parse_into(&mut row, "a b c");
         assert_row!(row, ["a", "b", "c"]);
     }
 
     #[test]
     fn test_split_line_collapse() {
+        let parser = RowParser::new(" ", false);
         let mut row = Row::new();
-        row.parse("a   b    c", " ", false);
+        parser.parse_into(&mut row, "a   b    c");
         assert_row!(row, ["a", "b", "c"]);
     }
 
     #[test]
     fn test_split_line_ignore_leading_and_trailing() {
+        let parser = RowParser::new(" ", false);
         let mut row = Row::new();
-        row.parse("   a   b    c   ", " ", false);
+        parser.parse_into(&mut row, "   a   b    c   ");
         assert_row!(row, ["a", "b", "c"]);
     }
 
     #[test]
     fn test_split_line_empty() {
+        let parser = RowParser::new(" ", false);
         let mut row = Row::new();
-        row.parse("", " ", false);
+        parser.parse_into(&mut row, "");
         assert!(row.get_parts().next().is_none());
 
-        row.parse(" ", " ", false);
+        parser.parse_into(&mut row, " ");
         assert!(row.get_parts().next().is_none());
     }
 
     #[test]
     fn test_split_line_strict() {
+        let parser = RowParser::new(" ", true);
         let mut row = Row::new();
-        row.parse("a b c", " ", true);
+        parser.parse_into(&mut row, "a b c");
         assert_row!(row, ["a", "b", "c"]);
 
-        row.parse(" a b  c", " ", true);
+        parser.parse_into(&mut row, " a b  c");
         assert_row!(row, ["", "a", "b", "", "c"]);
     }
 
     #[test]
     fn test_split_line_strict_trailing_whitespace() {
+        let parser = RowParser::new(" ", true);
         let mut row = Row::new();
-        row.parse("a ", " ", true);
+        parser.parse_into(&mut row, "a ");
         assert_row!(row, ["a", ""]);
 
-        row.parse("a  ", " ", true);
+        parser.parse_into(&mut row, "a  ");
         assert_row!(row, ["a", "", ""]);
     }
 
     #[test]
     fn test_split_line_strict_empty() {
+        let parser = RowParser::new(" ", true);
         let mut row = Row::new();
-        row.parse("", " ", true);
+        parser.parse_into(&mut row, "");
         assert_row!(row, [""]);
 
-        row.parse(" ", " ", true);
+        parser.parse_into(&mut row, " ");
         assert_row!(row, ["", ""]);
     }
 }
