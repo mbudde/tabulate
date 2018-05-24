@@ -170,3 +170,64 @@ fn print_row<W: Write>(
     write!(out, "\n")?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::BufReader;
+
+    #[test]
+    fn basic_test() {
+        let opts = Options {
+            truncate: None,
+            ratio: 1.0,
+            lines: 1000,
+            include_cols: None,
+            exclude_cols: Ranges::new(),
+            delim: " \t".to_string(),
+            strict_delim: false,
+            print_info: false,
+            online: false,
+        };
+
+        let reader = BufReader::new(&b"aa bb cc\n1 2 3\n"[..]);
+        let mut output: Vec<u8> = Vec::new();
+        process(reader, &mut output, &opts).unwrap();
+        assert_eq!(&output, b"aa  bb  cc\n1   2   3\n");
+    }
+
+    #[test]
+    fn exclude_column() {
+        let mut opts = Options {
+            truncate: None,
+            ratio: 1.0,
+            lines: 1000,
+            include_cols: None,
+            exclude_cols: Ranges(vec![Range::Between(2, 2)]),
+            delim: " \t".to_string(),
+            strict_delim: false,
+            print_info: false,
+            online: false,
+        };
+
+        let input: &[u8] = b"aa bb cc\n1 2 3\n";
+        let mut output: Vec<u8> = Vec::new();
+        process(BufReader::new(input), &mut output, &opts).unwrap();
+        assert_eq!(&output, b"aa  cc\n1   3\n");
+
+        opts.exclude_cols = Ranges(vec![Range::From(2)]);
+        output.clear();
+        process(BufReader::new(input), &mut output, &opts).unwrap();
+        assert_eq!(&output, b"aa\n1\n");
+
+        opts.exclude_cols = Ranges(vec![Range::To(2)]);
+        output.clear();
+        process(BufReader::new(input), &mut output, &opts).unwrap();
+        assert_eq!(&output, b"cc\n3\n");
+
+        opts.exclude_cols = Ranges(vec![Range::Between(1, 1), Range::Between(3, 3)]);
+        output.clear();
+        process(BufReader::new(input), &mut output, &opts).unwrap();
+        assert_eq!(&output, b"bb\n2\n");
+    }
+}
