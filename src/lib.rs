@@ -13,6 +13,7 @@ use parser::{Row, RowParser};
 pub mod column;
 pub mod range;
 pub mod parser;
+mod utils;
 
 pub mod errors {
     error_chain!{
@@ -157,17 +158,14 @@ fn print_row<W: Write>(
     columns: &[Column],
     row: &Row,
 ) -> io::Result<()> {
-    let mut first = true;
     let mut overflow: usize = 0;
-    for (cell, col) in row.get_parts().zip(columns).filter(
-        |&(_, col)| !col.is_excluded()
-    )
+    for ((cell, col), first, last) in utils::first_last_iter(
+        row.get_parts().zip(columns).filter(|&(_, col)| !col.is_excluded()))
     {
         if !first {
             write!(out, "  ")?;
         }
-        first = false;
-        overflow = col.print_cell(out, cell, overflow)?;
+        overflow = col.print_cell(out, cell, overflow, last)?;
     }
     write!(out, "\n")?;
     Ok(())

@@ -126,19 +126,24 @@ impl Column {
         self.opts.excluded
     }
 
-    pub fn print_cell<W: Write>(&self, out: &mut W, cell: &str, overflow: usize) -> io::Result<usize> {
-        let out_width = self.size.saturating_sub(overflow);
-        if self.opts.truncated && cell.len() > out_width {
-            if out_width > 0 {
-                write!(out, "{}…", &cell[0..out_width - 1])?;
-                Ok(0)
-            } else {
-                write!(out, "…")?;
-                Ok(1)
-            }
+    pub fn print_cell<W: Write>(&self, out: &mut W, cell: &str, overflow: usize, last: bool) -> io::Result<usize> {
+        if last {
+            write!(out, "{}", cell)?;
+            Ok(0)
         } else {
-            write!(out, "{:1$}", cell, out_width)?;
-            Ok(cell.len().saturating_sub(out_width))
+            let out_width = self.size.saturating_sub(overflow);
+            if self.opts.truncated && cell.len() > out_width {
+                if out_width > 0 {
+                    write!(out, "{}…", &cell[0..out_width - 1])?;
+                    Ok(0)
+                } else {
+                    write!(out, "…")?;
+                    Ok(1)
+                }
+            } else {
+                write!(out, "{:1$}", cell, out_width)?;
+                Ok(cell.len().saturating_sub(out_width))
+            }
         }
     }
 
