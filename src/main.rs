@@ -75,7 +75,11 @@ fn run() -> Result<()> {
              .help("Parse columns as strictly being delimited by a single delimiter"))
         .arg(Arg::with_name("column-info")
              .long("column-info")
+             .conflicts_with("online")
              .help("Print information about the columns"))
+        .arg(Arg::with_name("online")
+             .long("online")
+             .help("Print lines during column size estimation phase"))
         .after_help(
 r#"LIST should be a comma-separated list of ranges. Each range should be of one of the following forms:
 
@@ -145,6 +149,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
         delim: opt_delim,
         strict_delim: matches.is_present("strict-delimiter"),
         print_info: matches.is_present("column-info"),
+        online: matches.is_present("online"),
     };
 
     let stdin = std::io::stdin();
@@ -152,5 +157,5 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
     let stdin = stdin.lock();
     let stdout = stdout.lock();
 
-    tabulate::process(stdin, stdout, opts)
+    tabulate::process(stdin, stdout, &opts)
 }

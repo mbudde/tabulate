@@ -19,10 +19,11 @@ fuzz_target!(|data: &[u8]| {
         delim: " \t".to_string(),
         strict_delim: false,
         print_info: false,
+        online: false,
     };
 
     let reader = BufReader::new(data);
     let output: Vec<u8> = Vec::new();
 
-    tabulate::process(reader, output, opts).unwrap();
+    tabulate::process(reader, output, &opts).ok();
 });

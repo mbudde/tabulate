@@ -45,18 +45,19 @@ pub struct Options {
     pub delim: String,
     pub strict_delim: bool,
     pub print_info: bool,
+    pub online: bool,
 }
 
-pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: Options) -> Result<()> {
+pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) -> Result<()> {
 
     #[derive(Debug)]
     enum ProcessingState {
-        Measuring { backlog: Vec<Row> },
+        Measuring { lines_measured: usize, backlog: Vec<Row> },
         PrintBacklog { backlog: Vec<Row> },
         ProcessInput,
     }
 
-    let mut state = ProcessingState::Measuring { backlog: Vec::new() };
+    let mut state = ProcessingState::Measuring { lines_measured: 0, backlog: Vec::new() };
     let mut measure_columns = Vec::new();
     let mut columns = Vec::new();
     let parser = RowParser::new(opts.delim.clone(), opts.strict_delim);
@@ -65,7 +66,7 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: Options) -> 
 
     loop {
         state = match state {
-            ProcessingState::Measuring { mut backlog } => {
+            ProcessingState::Measuring { lines_measured, mut backlog } => {
                 if let Some(line) = lines.next() {
                     let line = line?;
                     parser.parse_into(&mut row, line);
@@ -77,18 +78,26 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: Options) -> 
                         opts.truncate.as_ref(),
                         opts.print_info,
                     );
-                    backlog.push(row.clone());
-                    if backlog.len() >= opts.lines {
-                        ProcessingState::PrintBacklog { backlog }
+                    if opts.online {
+                        columns.clear();
+                        columns.extend(measure_columns.iter().map(|c| c.calculate_size(opts.ratio)));
+                        print_row(&mut output, &columns[..], &row)?;
                     } else {
-                        ProcessingState::Measuring { backlog }
+                        backlog.push(row.clone());
+                    }
+                    if lines_measured < opts.lines {
+                        ProcessingState::Measuring { lines_measured: lines_measured + 1, backlog }
+                    } else {
+                        ProcessingState::PrintBacklog { backlog }
                     }
                 } else {
                     ProcessingState::PrintBacklog { backlog }
                 }
             }
             ProcessingState::PrintBacklog { backlog } => {
-                columns.extend(measure_columns.drain(..).map(|c| c.calculate_size(opts.ratio)));
+                columns.clear();
+                columns.extend(measure_columns.iter().map(|c| c.calculate_size(opts.ratio)));
+
                 if opts.print_info {
                     for (i, col) in columns.iter_mut().enumerate() {
                         write!(output, "Column {}\n", i + 1)?;
@@ -98,8 +107,8 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: Options) -> 
                     return Ok(());
                 }
 
-                for row in &backlog {
-                    print_row(&mut output, &columns[..], row)?;
+                for row in backlog {
+                    print_row(&mut output, &columns[..], &row)?;
                 }
 
                 ProcessingState::ProcessInput

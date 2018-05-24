@@ -1,18 +1,18 @@
 use std::io::{self, Write};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Options {
     excluded: bool,
     truncated: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ExtraInfo {
     min_value: Option<String>,
     max_value: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MeasureColumn {
     samples: Vec<(usize, usize)>,
     opts: Options,
@@ -71,7 +71,7 @@ impl MeasureColumn {
         }
     }
 
-    pub fn calculate_size(self, ratio: f64) -> Column {
+    pub fn calculate_size(&self, ratio: f64) -> Column {
         assert!(self.samples.len() > 0);
 
         let best_size = if ratio == 0. {
@@ -114,8 +114,8 @@ impl MeasureColumn {
 
         Column {
             size: best_size,
-            opts: self.opts,
-            extra_info: self.extra_info,
+            opts: self.opts.clone(),
+            extra_info: self.extra_info.clone(),
         }
     }
 
