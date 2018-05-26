@@ -51,7 +51,7 @@ fn run() -> Result<()> {
              .value_name("N")
              .number_of_values(1)
              .default_value("1000")
-             .help("Estimate column sizes from the first N lines"))
+             .help("Estimate column sizes from the first N lines. The value 0 means all lines"))
         .arg(Arg::with_name("include")
              .short("i").long("include")
              .value_name("LIST")

@@ -1,6 +1,6 @@
 [package]
 name = "tabulate"
-version = "1.0.3-pre"
+version = "1.1.0-pre"
 authors = ["Michael Budde <mbu@jobindex.dk>"]
 license = "MIT/Apache-2.0"
 description = "Tool for aligning data in columns"

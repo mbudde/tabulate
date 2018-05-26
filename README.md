@@ -72,7 +72,8 @@ OPTIONS:
             Use characters of DELIM as column delimiters [default: " \t"]
 
     -n, --estimate-count <N>
-            Estimate column sizes from the first N lines [default: 1000]
+            Estimate column sizes from the first N lines. The value 0 means all
+            lines [default: 1000]
 
     -x, --exclude <LIST>
             Select which columns should be excluded from the output. This option

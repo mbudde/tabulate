@@ -85,7 +85,7 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
                     } else {
                         backlog.push(row.clone());
                     }
-                    if lines_measured < opts.lines {
+                    if opts.lines == 0 || lines_measured < opts.lines {
                         ProcessingState::Measuring { lines_measured: lines_measured + 1, backlog }
                     } else {
                         ProcessingState::PrintBacklog { backlog }
