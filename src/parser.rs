@@ -61,10 +61,9 @@ impl RowParser {
         let mut state = Whitespace;
 
         let mut start = None;
-        let mut i = 0;
-        let mut chars = row.line.chars();
+        let mut chars = row.line.char_indices();
         let mut current_char = chars.next();
-        while let Some(ch) = current_char.take() {
+        while let Some((i, ch)) = current_char.take() {
             // print!("{} ", ch);
             match state {
                 Whitespace => {
@@ -110,14 +109,13 @@ impl RowParser {
             }
             if current_char.is_none() {
                 current_char = chars.next();
-                i += 1;
             }
         }
         if let Some(s) = start {
             // println!("output = {:?}", &input[s..i]);
-            row.parts.push((s, i));
+            row.parts.push((s, row.line.len()));
         } else if self.strict_delim && state == Whitespace {
-            row.parts.push((i, i));
+            row.parts.push((0, 0));
         }
     }
 }
@@ -199,5 +197,13 @@ mod tests {
 
         parser.parse_into(&mut row, " ");
         assert_row!(row, ["", ""]);
+    }
+
+    #[test]
+    fn fuzz_regress_1() {
+        let parser = RowParser::new(" ", true);
+        let mut row = Row::new();
+        parser.parse_into(&mut row, "\u{0423}");
+        assert_row!(row, ["\u{0423}"]);
     }
 }
