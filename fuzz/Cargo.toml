@@ -18,5 +18,9 @@ git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 members = ["."]
 
 [[bin]]
-name = "fuzz_target_1"
-path = "fuzz_targets/fuzz_target_1.rs"
+name = "defaults"
+path = "fuzz_targets/defaults.rs"
+
+[[bin]]
+name = "truncate"
+path = "fuzz_targets/truncate.rs"
