@@ -142,7 +142,7 @@ fn update_columns(
         columns[i].add_sample(&row[i]);
     }
     for i in columns.len()..row.len() {
-        let mut col = MeasureColumn::new(row[i].len(), collect_info);
+        let mut col = MeasureColumn::new(collect_info);
         let col_num = (i + 1) as u32;
 
         let included = include_cols
@@ -157,6 +157,8 @@ fn update_columns(
 
         col.set_excluded(!included || excluded);
         col.set_truncated(truncated);
+
+        col.add_sample(&row[i]);
 
         columns.push(col);
     }

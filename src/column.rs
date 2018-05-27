@@ -27,7 +27,7 @@ pub struct Column {
 }
 
 impl MeasureColumn {
-    pub fn new(initial: usize, collect_info: bool) -> MeasureColumn {
+    pub fn new(collect_info: bool) -> MeasureColumn {
         let extra = if collect_info {
             Some(ExtraInfo {
                 min_value: None,
@@ -38,7 +38,7 @@ impl MeasureColumn {
         };
 
         MeasureColumn {
-            samples: vec![(initial, 1)],
+            samples: vec![],
             opts: Options {
                 excluded: false,
                 truncated: false,
