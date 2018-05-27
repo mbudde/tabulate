@@ -57,7 +57,7 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
         ProcessInput,
     }
 
-    let mut state = ProcessingState::Measuring { lines_measured: 0, backlog: Vec::new() };
+    let mut state = ProcessingState::Measuring { lines_measured: 1, backlog: Vec::new() };
     let mut measure_columns = Vec::new();
     let mut columns = Vec::new();
     let parser = RowParser::new(opts.delim.clone(), opts.strict_delim);
@@ -238,5 +238,25 @@ mod tests {
         output.clear();
         process(BufReader::new(input), &mut output, &opts).unwrap();
         assert_eq!(&output, b"bb\n2\n");
+    }
+
+    #[test]
+    fn lines_opt() {
+        let opts = Options {
+            truncate: None,
+            ratio: 1.0,
+            lines: 1,
+            include_cols: None,
+            exclude_cols: Ranges::new(),
+            delim: " \t".to_string(),
+            strict_delim: false,
+            print_info: false,
+            online: false,
+        };
+
+        let reader = BufReader::new(&b"1 1\naaaa aaaa\n"[..]);
+        let mut output: Vec<u8> = Vec::new();
+        process(reader, &mut output, &opts).unwrap();
+        assert_eq!(&output, b"1  1\naaaa  aaaa\n");
     }
 }
