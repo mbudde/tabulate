@@ -72,7 +72,7 @@ impl MeasureColumn {
     }
 
     pub fn calculate_size(&self, ratio: f64) -> Column {
-        assert!(self.samples.len() > 0);
+        assert!(!self.samples.is_empty());
 
         let best_size = if ratio == 0. {
             // Optimization
@@ -89,7 +89,7 @@ impl MeasureColumn {
 
             let mut best_score = ::std::f64::INFINITY;
             let mut best_size = max;
-            for l in min..max + 1 {
+            for l in min..=max {
                 let waste: f64 = prob.iter()
                     .take_while(|&&(s, _)| s < l)
                     .map(|&(s, p)| p * l.saturating_sub(s) as f64)
@@ -149,14 +149,14 @@ impl Column {
 
     pub fn print_info<W: Write>(&mut self, out: &mut W) -> io::Result<()> {
         let extra = self.extra_info.take().unwrap();
-        write!(out, "  Computed column size:  {}\n", self.size)?;
-        write!(out, "  Excluded:              {}\n", self.opts.excluded)?;
-        write!(out, "  Truncated:             {}\n", self.opts.truncated)?;
+        writeln!(out, "  Computed column size:  {}", self.size)?;
+        writeln!(out, "  Excluded:              {}", self.opts.excluded)?;
+        writeln!(out, "  Truncated:             {}", self.opts.truncated)?;
         if let Some(ref min) = extra.min_value {
-            write!(out, "  Min-length value:      [length {}] {:?}\n", min.len(), min)?;
+            writeln!(out, "  Min-length value:      [length {}] {:?}", min.len(), min)?;
         }
         if let Some(ref max) = extra.max_value {
-            write!(out, "  Max-length value:      [length {}] {:?}\n", max.len(), max)?;
+            writeln!(out, "  Max-length value:      [length {}] {:?}", max.len(), max)?;
         }
         Ok(())
     }

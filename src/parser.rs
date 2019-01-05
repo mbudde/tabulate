@@ -1,5 +1,5 @@
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Row {
     parts: Vec<(usize, usize)>,
     line: String,
@@ -19,6 +19,10 @@ impl Row {
 
     pub fn len(&self) -> usize {
         self.parts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.parts.is_empty()
     }
 }
 

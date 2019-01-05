@@ -1,7 +1,3 @@
-extern crate clap;
-extern crate error_chain;
-extern crate tabulate;
-
 use clap::{App, AppSettings, Arg};
 
 use tabulate::{
@@ -11,7 +7,7 @@ use tabulate::{
 };
 
 
-const BUILD_INFO: &'static str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
+const BUILD_INFO: &str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
 
 fn main() {
     match run() {
@@ -133,7 +129,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
                 .collect::<Result<Ranges>>()
                 .chain_err(|| "invalid argument to -x/--exclude")
         })
-        .unwrap_or(Ok(Ranges::new()))?;
+        .unwrap_or_else(|| Ok(Ranges::new()))?;
 
     let opt_delim = matches
         .value_of("delimiter")

@@ -4,7 +4,7 @@ use std::iter::FromIterator;
 use combine::{Parser, many1, token, eof, optional};
 use combine::char::digit;
 
-use errors::*;
+use crate::errors::*;
 
 #[derive(Debug)]
 pub enum Range {
@@ -15,7 +15,7 @@ pub enum Range {
 
 impl Range {
     pub fn contains(&self, n: u32) -> bool {
-        use Range::*;
+        use crate::Range::*;
         match *self {
             From(a) => a <= n,
             To(b) => n <= b,
@@ -27,7 +27,7 @@ impl Range {
 impl FromStr for Range {
     type Err = Error;
     fn from_str(s: &str) -> Result<Range> {
-        use Range::*;
+        use crate::Range::*;
         let num = || many1(digit()).map(|string: String| string.parse::<u32>().unwrap());
 
         let mut range = num()
@@ -37,7 +37,7 @@ impl FromStr for Range {
                 Some(None) => From(a),
                 None => Between(a, a),
             })
-            .or(token('-').with(num()).map(|b| To(b)))
+            .or(token('-').with(num()).map(To))
             .skip(eof());
 
         range
@@ -54,7 +54,7 @@ impl FromStr for Range {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Ranges(pub Vec<Range>);
 
 impl Ranges {

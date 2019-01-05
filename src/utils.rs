@@ -9,7 +9,7 @@ pub fn first_last_iter<I: Iterator>(mut iter: I) -> FirstLastIter<I, I::Item> {
     let next = iter.next();
     FirstLastIter {
         inner: iter,
-        next: next,
+        next,
         first: true,
     }
 }

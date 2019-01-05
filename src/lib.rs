@@ -1,14 +1,10 @@
-extern crate combine;
-#[macro_use]
-extern crate error_chain;
-
 use std::io::{self, Write, BufRead};
 use std::cmp::min;
 
-use column::{Column, MeasureColumn};
-use errors::*;
-use range::{Range, Ranges};
-use parser::{Row, RowParser};
+use crate::column::{Column, MeasureColumn};
+use crate::errors::*;
+use crate::range::{Range, Ranges};
+use crate::parser::{Row, RowParser};
 
 pub mod column;
 pub mod range;
@@ -16,6 +12,8 @@ pub mod parser;
 mod utils;
 
 pub mod errors {
+    use error_chain::*;
+
     error_chain!{
         foreign_links {
             Io(::std::io::Error);
@@ -100,9 +98,9 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
 
                 if opts.print_info {
                     for (i, col) in columns.iter_mut().enumerate() {
-                        write!(output, "Column {}\n", i + 1)?;
+                        writeln!(output, "Column {}", i + 1)?;
                         col.print_info(&mut output)?;
-                        write!(output, "\n")?;
+                        writeln!(output)?;
                     }
                     return Ok(());
                 }
@@ -141,6 +139,7 @@ fn update_columns(
     for i in 0..min(columns.len(), row.len()) {
         columns[i].add_sample(&row[i]);
     }
+    #[allow(clippy::needless_range_loop)]
     for i in columns.len()..row.len() {
         let mut col = MeasureColumn::new(collect_info);
         let col_num = (i + 1) as u32;
@@ -178,7 +177,7 @@ fn print_row<W: Write>(
         }
         overflow = col.print_cell(out, cell, overflow, last)?;
     }
-    write!(out, "\n")?;
+    writeln!(out)?;
     Ok(())
 }
 

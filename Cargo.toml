@@ -8,6 +8,7 @@ repository = "https://github.com/mbudde/tabulate"
 readme = "README.md"
 categories = ["command-line-utilities"]
 build = "build.rs"
+edition = "2018"
 
 [dependencies]
 combine = "3.2.0"
