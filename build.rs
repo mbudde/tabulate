@@ -18,7 +18,7 @@ fn main() {
         .arg("+%Y-%m-%d")
         .output()
         .map(|out| out.stdout)
-        .map(|mut hash| { hash.truncate(10); hash });
+        .map(|mut date| { date.truncate(10); date });
 
     let mut file = File::create(path).unwrap();
     if let (Ok(h), Ok(d)) = (hash, date) {
