@@ -260,4 +260,30 @@ mod tests {
         process(reader, &mut output, &opts).unwrap();
         assert_eq!(&output, b"1  1\naaaa  aaaa\n");
     }
+
+    #[test]
+    fn overflow() {
+        let opts = Options {
+            truncate: None,
+            ratio: 1.0,
+            lines: 1,
+            include_cols: None,
+            exclude_cols: Ranges::new(),
+            delim: " \t".to_string(),
+            strict_delim: false,
+            print_info: false,
+            online: false,
+        };
+
+        // a  a  aaaaaaaaaaa  a
+        // a  a  aaaaaaaaaaa  a
+        // a  a  aaaaaaaaaaa  a
+        // bbbbbb  bb  b      b
+        let input  = ("a a aaaaaaaaaaa a\n".repeat(10) + "bbbbbb bb b b\n").into_bytes();
+        let expected = "a  a  aaaaaaaaaaa  a\n".repeat(10) + "bbbbbb  bb  b      b\n";
+        let reader = BufReader::new(&input[..]);
+        let mut output: Vec<u8> = Vec::new();
+        process(reader, &mut output, &opts).unwrap();
+        assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
+    }
 }

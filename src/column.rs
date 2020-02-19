@@ -142,7 +142,11 @@ impl Column {
                 }
             } else {
                 write!(out, "{:1$}", cell, out_width)?;
-                Ok(cell.len().saturating_sub(out_width))
+                if cell.len() < self.size {
+                    Ok(overflow.saturating_sub(self.size.saturating_sub(cell.len())))
+                } else {
+                    Ok(overflow + cell.len().saturating_sub(self.size))
+                }
             }
         }
     }
