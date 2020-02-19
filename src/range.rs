@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::iter::FromIterator;
 
 use combine::{Parser, many1, token, eof, optional};
-use combine::char::digit;
+use combine::parser::char::digit;
 
 use crate::errors::*;
 
