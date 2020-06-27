@@ -1,4 +1,3 @@
-
 #[derive(Clone, Debug, Default)]
 pub struct Row {
     parts: Vec<(usize, usize)>,
@@ -13,7 +12,7 @@ impl Row {
         }
     }
 
-    pub fn get_parts(&self) -> impl Iterator<Item=&str> {
+    pub fn get_parts(&self) -> impl Iterator<Item = &str> {
         self.parts.iter().map(move |&(i, j)| &self.line[i..j])
     }
 
@@ -35,7 +34,6 @@ impl ::std::ops::Index<usize> for Row {
     }
 }
 
-
 #[derive(Eq, PartialEq)]
 enum ParseState {
     Whitespace,
@@ -45,7 +43,7 @@ enum ParseState {
 
 pub struct RowParser {
     delim: String,
-    strict_delim: bool
+    strict_delim: bool,
 }
 
 impl RowParser {
@@ -123,7 +121,6 @@ impl RowParser {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,8 @@
-use std::str::FromStr;
 use std::iter::FromIterator;
+use std::str::FromStr;
 
-use combine::{Parser, many1, token, eof, optional};
 use combine::parser::char::digit;
+use combine::{eof, many1, optional, token, Parser};
 
 use crate::errors::*;
 
@@ -46,9 +46,9 @@ impl FromStr for Range {
             .map(|o| o.0)
             .and_then(|r| match r {
                 From(0) | To(0) | Between(0, _) => Err(ErrorKind::ColumnsStartAtOne.into()),
-                Between(a, b) if b < a => Err(
-                    ErrorKind::InvalidDecreasingRange(s.to_string()).into(),
-                ),
+                Between(a, b) if b < a => {
+                    Err(ErrorKind::InvalidDecreasingRange(s.to_string()).into())
+                }
                 _ => Ok(r),
             })
     }
@@ -68,7 +68,7 @@ impl Ranges {
 }
 
 impl FromIterator<Range> for Ranges {
-    fn from_iter<I: IntoIterator<Item=Range>>(iter: I) -> Self {
+    fn from_iter<I: IntoIterator<Item = Range>>(iter: I) -> Self {
         Ranges(Vec::from_iter(iter))
     }
 }

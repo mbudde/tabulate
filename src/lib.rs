@@ -1,20 +1,20 @@
-use std::io::{self, Write, BufRead};
 use std::cmp::min;
+use std::io::{self, BufRead, Write};
 
 use crate::column::{Column, MeasureColumn};
 use crate::errors::*;
-use crate::range::{Range, Ranges};
 use crate::parser::{Row, RowParser};
+use crate::range::{Range, Ranges};
 
 pub mod column;
-pub mod range;
 pub mod parser;
+pub mod range;
 mod utils;
 
 pub mod errors {
     use error_chain::*;
 
-    error_chain!{
+    error_chain! {
         foreign_links {
             Io(::std::io::Error);
         }
@@ -47,15 +47,22 @@ pub struct Options {
 }
 
 pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) -> Result<()> {
-
     #[derive(Debug)]
     enum ProcessingState {
-        Measuring { lines_measured: usize, backlog: Vec<Row> },
-        PrintBacklog { backlog: Vec<Row> },
+        Measuring {
+            lines_measured: usize,
+            backlog: Vec<Row>,
+        },
+        PrintBacklog {
+            backlog: Vec<Row>,
+        },
         ProcessInput,
     }
 
-    let mut state = ProcessingState::Measuring { lines_measured: 1, backlog: Vec::new() };
+    let mut state = ProcessingState::Measuring {
+        lines_measured: 1,
+        backlog: Vec::new(),
+    };
     let mut measure_columns = Vec::new();
     let mut columns = Vec::new();
     let parser = RowParser::new(opts.delim.clone(), opts.strict_delim);
@@ -64,7 +71,10 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
 
     loop {
         state = match state {
-            ProcessingState::Measuring { lines_measured, mut backlog } => {
+            ProcessingState::Measuring {
+                lines_measured,
+                mut backlog,
+            } => {
                 if let Some(line) = lines.next() {
                     let line = line?;
                     parser.parse_into(&mut row, line);
@@ -78,13 +88,17 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
                     );
                     if opts.online {
                         columns.clear();
-                        columns.extend(measure_columns.iter().map(|c| c.calculate_size(opts.ratio)));
+                        columns
+                            .extend(measure_columns.iter().map(|c| c.calculate_size(opts.ratio)));
                         print_row(&mut output, &columns[..], &row)?;
                     } else {
                         backlog.push(row.clone());
                     }
                     if opts.lines == 0 || lines_measured < opts.lines {
-                        ProcessingState::Measuring { lines_measured: lines_measured + 1, backlog }
+                        ProcessingState::Measuring {
+                            lines_measured: lines_measured + 1,
+                            backlog,
+                        }
                     } else {
                         ProcessingState::PrintBacklog { backlog }
                     }
@@ -163,15 +177,13 @@ fn update_columns(
     }
 }
 
-fn print_row<W: Write>(
-    out: &mut W,
-    columns: &[Column],
-    row: &Row,
-) -> io::Result<()> {
+fn print_row<W: Write>(out: &mut W, columns: &[Column], row: &Row) -> io::Result<()> {
     let mut overflow: usize = 0;
     for ((cell, col), first, last) in utils::first_last_iter(
-        row.get_parts().zip(columns).filter(|&(_, col)| !col.is_excluded()))
-    {
+        row.get_parts()
+            .zip(columns)
+            .filter(|&(_, col)| !col.is_excluded()),
+    ) {
         if !first {
             write!(out, "  ")?;
         }
@@ -279,7 +291,7 @@ mod tests {
         // a  a  aaaaaaaaaaa  a
         // a  a  aaaaaaaaaaa  a
         // bbbbbb  bb  b      b
-        let input  = ("a a aaaaaaaaaaa a\n".repeat(10) + "bbbbbb bb b b\n").into_bytes();
+        let input = ("a a aaaaaaaaaaa a\n".repeat(10) + "bbbbbb bb b b\n").into_bytes();
         let expected = "a  a  aaaaaaaaaaa  a\n".repeat(10) + "bbbbbb  bb  b      b\n";
         let reader = BufReader::new(&input[..]);
         let mut output: Vec<u8> = Vec::new();

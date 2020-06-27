@@ -1,4 +1,3 @@
-
 pub struct FirstLastIter<I, T> {
     inner: I,
     next: Option<T>,
@@ -15,7 +14,8 @@ pub fn first_last_iter<I: Iterator>(mut iter: I) -> FirstLastIter<I, I::Item> {
 }
 
 impl<I, T> Iterator for FirstLastIter<I, T>
-    where I: Iterator<Item=T>
+where
+    I: Iterator<Item = T>,
 {
     type Item = (T, bool, bool); // (value, is_first, is_last)
 
@@ -27,9 +27,7 @@ impl<I, T> Iterator for FirstLastIter<I, T>
                 self.first = false;
                 Some((val, first, self.next.is_none()))
             }
-            None => {
-                None
-            }
+            None => None,
         }
     }
 }

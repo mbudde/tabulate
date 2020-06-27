@@ -1,11 +1,10 @@
 use clap::{App, AppSettings, Arg};
 
 use tabulate::{
-    Options,
-    range::{Range, Ranges},
     errors::*,
+    range::{Range, Ranges},
+    Options,
 };
-
 
 const BUILD_INFO: &str = include_str!(concat!(env!("OUT_DIR"), "/build-info.txt"));
 
@@ -101,16 +100,16 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
         .unwrap_or(Ok(None))?;
 
     let opt_ratio = matches
-        .value_of("compress-cols").unwrap()
-        .parse().chain_err(
-            || "could not parse argument to -c/--compress-cols as a floating number",
-        )?;
+        .value_of("compress-cols")
+        .unwrap()
+        .parse()
+        .chain_err(|| "could not parse argument to -c/--compress-cols as a floating number")?;
 
     let opt_lines = matches
-        .value_of("estimate-count").unwrap()
-        .parse().chain_err(
-            || "could not parse argument to -n/--estimate-count as a number",
-        )?;
+        .value_of("estimate-count")
+        .unwrap()
+        .parse()
+        .chain_err(|| "could not parse argument to -n/--estimate-count as a number")?;
 
     let opt_include_cols = matches
         .values_of("include")
@@ -131,10 +130,7 @@ r#"LIST should be a comma-separated list of ranges. Each range should be of one 
         })
         .unwrap_or_else(|| Ok(Ranges::new()))?;
 
-    let opt_delim = matches
-        .value_of("delimiter")
-        .unwrap_or(" \t")
-        .to_string();
+    let opt_delim = matches.value_of("delimiter").unwrap_or(" \t").to_string();
 
     let opts = Options {
         truncate: opt_truncate,

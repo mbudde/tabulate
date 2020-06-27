@@ -62,10 +62,20 @@ impl MeasureColumn {
             Err(i) => self.samples.insert(i, (size, 1)),
         }
         if let Some(ref mut extra) = self.extra_info {
-            if extra.min_value.as_ref().map(|s| size < s.len()).unwrap_or(true) {
+            if extra
+                .min_value
+                .as_ref()
+                .map(|s| size < s.len())
+                .unwrap_or(true)
+            {
                 extra.min_value = Some(sample.to_string());
             }
-            if extra.max_value.as_ref().map(|s| size > s.len()).unwrap_or(true) {
+            if extra
+                .max_value
+                .as_ref()
+                .map(|s| size > s.len())
+                .unwrap_or(true)
+            {
                 extra.max_value = Some(sample.to_string());
             }
         }
@@ -82,7 +92,8 @@ impl MeasureColumn {
             let min = self.samples.iter().map(|p| p.0).min().unwrap();
             let max = self.samples.iter().map(|p| p.0).max().unwrap();
             let spread = (0.7 + 20.0 / (1 + max - min) as f64).powi(2);
-            let prob = self.samples
+            let prob = self
+                .samples
                 .iter()
                 .map(|&(s, x)| (s, x as f64 / n as f64))
                 .collect::<Vec<_>>();
@@ -90,11 +101,13 @@ impl MeasureColumn {
             let mut best_score = ::std::f64::INFINITY;
             let mut best_size = max;
             for l in min..=max {
-                let waste: f64 = prob.iter()
+                let waste: f64 = prob
+                    .iter()
                     .take_while(|&&(s, _)| s < l)
                     .map(|&(s, p)| p * l.saturating_sub(s) as f64)
                     .sum();
-                let overflow: f64 = prob.iter()
+                let overflow: f64 = prob
+                    .iter()
                     .skip_while(|&&(s, _)| s <= l)
                     .map(|&(s, p)| p * s.saturating_sub(l) as f64)
                     .sum();
@@ -118,7 +131,6 @@ impl MeasureColumn {
             extra_info: self.extra_info.clone(),
         }
     }
-
 }
 
 impl Column {
@@ -126,7 +138,13 @@ impl Column {
         self.opts.excluded
     }
 
-    pub fn print_cell<W: Write>(&self, out: &mut W, cell: &str, overflow: usize, last: bool) -> io::Result<usize> {
+    pub fn print_cell<W: Write>(
+        &self,
+        out: &mut W,
+        cell: &str,
+        overflow: usize,
+        last: bool,
+    ) -> io::Result<usize> {
         if last {
             write!(out, "{}", cell)?;
             Ok(0)
@@ -157,10 +175,20 @@ impl Column {
         writeln!(out, "  Excluded:              {}", self.opts.excluded)?;
         writeln!(out, "  Truncated:             {}", self.opts.truncated)?;
         if let Some(ref min) = extra.min_value {
-            writeln!(out, "  Min-length value:      [length {}] {:?}", min.len(), min)?;
+            writeln!(
+                out,
+                "  Min-length value:      [length {}] {:?}",
+                min.len(),
+                min
+            )?;
         }
         if let Some(ref max) = extra.max_value {
-            writeln!(out, "  Max-length value:      [length {}] {:?}", max.len(), max)?;
+            writeln!(
+                out,
+                "  Max-length value:      [length {}] {:?}",
+                max.len(),
+                max
+            )?;
         }
         Ok(())
     }
