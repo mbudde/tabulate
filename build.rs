@@ -8,7 +8,7 @@ fn main() {
     let path = Path::new(&env::var("OUT_DIR").unwrap()).join("build-info.txt");
 
     let hash = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .map(|out| out.stdout)
         .map(|mut hash| {
