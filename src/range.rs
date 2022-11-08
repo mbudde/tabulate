@@ -6,7 +6,7 @@ use combine::{eof, many1, optional, token, Parser};
 
 use crate::errors::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Range {
     From(u32),
     To(u32),
@@ -54,7 +54,7 @@ impl FromStr for Range {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Ranges(pub Vec<Range>);
 
 impl Ranges {
