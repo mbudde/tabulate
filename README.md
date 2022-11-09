@@ -55,48 +55,38 @@ cargo install tabulate
 ## Options
 
 ```
-tabulate
+Usage: tabulate [OPTIONS]
 
-USAGE:
-    tabulate [OPTIONS]
+Options:
+  -t, --truncate [<LIST>...]
+          Truncate data that does not fit in a column. Takes an optional list of columns that should be
+          truncated. If no LIST is given all columns are truncated
+  -c, --compress-cols <RATIO>
+          Number between 0.0 and 1.0 that controls how much columns are compressed. Set to 0 to disable
+          column compression, i.e. columns are sized to fit the largest value [default: 1.0]
+  -n, --estimate-count <N>
+          Estimate column sizes from the first N lines. The value 0 means all lines [default: 1000]
+  -i, --include <LIST>...
+          Select which columns to include in the output
+  -x, --exclude <LIST>...
+          Select which columns should be excluded from the output. This option takes precedence over
+          --include
+  -d, --delimiter <DELIM>
+          Use characters of DELIM as column delimiters [default: " \t"]
+  -o, --output-delimiter <DELIM>
+          Specify the delimiter to use to separate columns in the output [default: "  "]
+  -s, --strict
+          Parse columns as strictly being delimited by a single delimiter
+      --online
+          Print lines during column size estimation phase
+      --column-info
+          Print information about the columns
+  -h, --help
+          Print help information
+  -V, --version
+          Print version information
 
-OPTIONS:
-        --column-info
-            Print information about the columns
-
-    -c, --compress-cols <RATIO>
-            Control how much columns are compressed. Set to 0 to disable column
-            compression, i.e. columns are sized to fit the largest value [default:
-            1.0]
-    -d, --delimiter <DELIM>
-            Use characters of DELIM as column delimiters [default: " \t"]
-
-    -n, --estimate-count <N>
-            Estimate column sizes from the first N lines. The value 0 means all
-            lines [default: 1000]
-
-    -x, --exclude <LIST>
-            Select which columns should be excluded from the output. This option
-            takes precedence over --include
-    -h, --help
-            Prints help information
-
-    -i, --include <LIST>
-            Select which columns to include in the output
-
-    -s, --strict
-            Parse columns as strictly being delimited by a single delimiter
-
-    -t, --truncate <LIST>
-            Truncate data that does not fit in a column. Takes an optional list of
-            columns that should be truncated. If no LIST is given all columns are
-            truncated
-    -V, --version
-            Prints version information
-
-
-LIST should be a comma-separated list of ranges. Each range should be of one of the
-following forms:
+LIST should be a comma-separated list of ranges. Each range should be of one of the following forms:
 
   N       N'th column, starting at 1
   N-      from N'th column to end of line
