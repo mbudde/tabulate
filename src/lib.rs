@@ -42,6 +42,7 @@ pub struct Options {
     pub include_cols: Option<Ranges>,
     pub exclude_cols: Ranges,
     pub delim: String,
+    pub output_delim: String,
     pub strict_delim: bool,
     pub print_info: bool,
     pub online: bool,
@@ -91,7 +92,7 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
                         columns.clear();
                         columns
                             .extend(measure_columns.iter().map(|c| c.calculate_size(opts.ratio)));
-                        print_row(&mut output, &columns[..], &row)?;
+                        print_row(&mut output, &columns[..], &row, &opts.output_delim)?;
                     } else {
                         backlog.push(row.clone());
                     }
@@ -121,7 +122,7 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
                 }
 
                 for row in backlog {
-                    print_row(&mut output, &columns[..], &row)?;
+                    print_row(&mut output, &columns[..], &row, &opts.output_delim)?;
                 }
 
                 ProcessingState::ProcessInput
@@ -130,7 +131,7 @@ pub fn process<R: BufRead, W: Write>(input: R, mut output: W, opts: &Options) ->
                 if let Some(line) = lines.next() {
                     let line = line?;
                     parser.parse_into(&mut row, line);
-                    print_row(&mut output, &columns[..], &row)?;
+                    print_row(&mut output, &columns[..], &row, &opts.output_delim)?;
 
                     ProcessingState::ProcessInput
                 } else {
@@ -178,7 +179,7 @@ fn update_columns(
     }
 }
 
-fn print_row<W: Write>(out: &mut W, columns: &[Column], row: &Row) -> io::Result<()> {
+fn print_row<W: Write>(out: &mut W, columns: &[Column], row: &Row, output_delim: &str) -> io::Result<()> {
     let mut overflow: usize = 0;
     for ((cell, col), first, last) in utils::first_last_iter(
         row.get_parts()
@@ -186,7 +187,7 @@ fn print_row<W: Write>(out: &mut W, columns: &[Column], row: &Row) -> io::Result
             .filter(|&(_, col)| !col.is_excluded()),
     ) {
         if !first {
-            write!(out, "  ")?;
+            write!(out, "{}", output_delim)?;
         }
         overflow = col.print_cell(out, cell, overflow, last)?;
     }
@@ -208,6 +209,7 @@ mod tests {
             include_cols: None,
             exclude_cols: Ranges::new(),
             delim: " \t".to_string(),
+            output_delim: "  ".to_string(),
             strict_delim: false,
             print_info: false,
             online: false,
@@ -228,6 +230,7 @@ mod tests {
             include_cols: None,
             exclude_cols: Ranges(vec![Range::Between(2, 2)]),
             delim: " \t".to_string(),
+            output_delim: "  ".to_string(),
             strict_delim: false,
             print_info: false,
             online: false,
@@ -263,6 +266,7 @@ mod tests {
             include_cols: None,
             exclude_cols: Ranges::new(),
             delim: " \t".to_string(),
+            output_delim: "  ".to_string(),
             strict_delim: false,
             print_info: false,
             online: false,
@@ -283,6 +287,7 @@ mod tests {
             include_cols: None,
             exclude_cols: Ranges::new(),
             delim: " \t".to_string(),
+            output_delim: "  ".to_string(),
             strict_delim: false,
             print_info: false,
             online: false,
@@ -294,6 +299,33 @@ mod tests {
         // bbbbbb  bb  b      b
         let input = ("a a aaaaaaaaaaa a\n".repeat(10) + "bbbbbb bb b b\n").into_bytes();
         let expected = "a  a  aaaaaaaaaaa  a\n".repeat(10) + "bbbbbb  bb  b      b\n";
+        let reader = BufReader::new(&input[..]);
+        let mut output: Vec<u8> = Vec::new();
+        process(reader, &mut output, &opts).unwrap();
+        assert_eq!(std::str::from_utf8(&output).unwrap(), expected);
+    }
+
+    #[test]
+    fn output_delimiter() {
+        let opts = Options {
+            truncate: None,
+            ratio: 1.0,
+            lines: 1,
+            include_cols: None,
+            exclude_cols: Ranges::new(),
+            delim: " \t".to_string(),
+            output_delim: " & ".to_string(),
+            strict_delim: false,
+            print_info: false,
+            online: false,
+        };
+
+        // a & a & aaaaaaaaaaa & a
+        // a & a & aaaaaaaaaaa & a
+        // a & a & aaaaaaaaaaa & a
+        // bbbbbb & bb & b     & b
+        let input = ("a a aaaaaaaaaaa a\n".repeat(10) + "bbbbbb bb b b\n").into_bytes();
+        let expected = "a & a & aaaaaaaaaaa & a\n".repeat(10) + "bbbbbb & bb & b     & b\n";
         let reader = BufReader::new(&input[..]);
         let mut output: Vec<u8> = Vec::new();
         process(reader, &mut output, &opts).unwrap();

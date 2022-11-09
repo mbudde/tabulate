@@ -80,6 +80,10 @@ struct Args {
     #[arg(short = 'd', long = "delimiter", value_name = "DELIM", num_args = 1, default_value = " \t")]
     pub delim: String,
 
+    /// Specify the delimiter to use to separate columns in the output.
+    #[arg(short = 'o', long = "output-delimiter", value_name = "DELIM", num_args = 1, default_value = "  ")]
+    pub output_delim: String,
+
     /// Parse columns as strictly being delimited by a single delimiter.
     #[arg(short = 's', long = "strict")]
     pub strict_delim: bool,
@@ -115,6 +119,7 @@ fn run() -> Result<()> {
         include_cols: args.include_cols,
         exclude_cols: args.exclude_cols.unwrap_or(Ranges::new()),
         delim: args.delim,
+        output_delim: args.output_delim,
         strict_delim: args.strict_delim,
         print_info: args.print_info,
         online: args.online,
