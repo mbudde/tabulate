@@ -12,24 +12,25 @@ pub mod range;
 mod utils;
 
 pub mod errors {
-    use error_chain::*;
+    pub type Result<T> = std::result::Result<T, Error>;
 
-    error_chain! {
-        foreign_links {
-            Io(::std::io::Error);
-        }
+    #[derive(Debug, thiserror::Error)]
+    pub enum Error {
+        #[error("IO error")]
+        Io(#[from] ::std::io::Error),
 
-        errors {
-            RangeParseError(s: String) {
-                display("could not parse '{}' as a range", s)
-            }
-            InvalidDecreasingRange(s: String) {
-                display("invalid decreasing range: {}", s)
-            }
-            ColumnsStartAtOne {
-                display("columns are numbered starting from 1")
-            }
-        }
+        #[error("could not parse '{}' as a range", .s)]
+        RangeParseError {
+            s: String
+        },
+
+        #[error("invalid decreasing range: {}", .s)]
+        InvalidDecreasingRange {
+            s: String
+        },
+
+        #[error("columns are numbered starting from 1")]
+        ColumnsStartAtOne,
     }
 }
 

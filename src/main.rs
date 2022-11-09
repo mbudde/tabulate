@@ -30,7 +30,7 @@ impl clap::builder::TypedValueParser for RangesValueParser {
             .collect::<Result<Ranges>>()
             .map_err(|_| {
                 use clap::error::*;
-                let mut err = clap::Error::new(ErrorKind::ValueValidation)
+                let mut err = Error::new(ErrorKind::ValueValidation)
                     .with_cmd(cmd);
                 if let Some(arg) = arg {
                     err.insert(ContextKind::InvalidArg, ContextValue::String(arg.to_string()));
@@ -96,10 +96,9 @@ struct Args {
 fn main() {
     match run() {
         Ok(..) => {}
-        Err(Error(ErrorKind::Io(ref e), _)) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
+        Err(Error::Io(ref e)) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
         Err(ref e) => {
-            use error_chain::ChainedError;
-            eprintln!("{}", e.display_chain());
+            eprintln!("{}", e);
             ::std::process::exit(1);
         }
     }

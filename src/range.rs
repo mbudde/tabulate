@@ -42,12 +42,12 @@ impl FromStr for Range {
 
         range
             .parse(s)
-            .map_err(|_| ErrorKind::RangeParseError(s.to_string()).into())
+            .map_err(|_| Error::RangeParseError{ s: s.to_string() })
             .map(|o| o.0)
             .and_then(|r| match r {
-                From(0) | To(0) | Between(0, _) => Err(ErrorKind::ColumnsStartAtOne.into()),
+                From(0) | To(0) | Between(0, _) => Err(Error::ColumnsStartAtOne),
                 Between(a, b) if b < a => {
-                    Err(ErrorKind::InvalidDecreasingRange(s.to_string()).into())
+                    Err(Error::InvalidDecreasingRange { s: s.to_string() })
                 }
                 _ => Ok(r),
             })
